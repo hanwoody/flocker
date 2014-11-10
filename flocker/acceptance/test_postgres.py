@@ -11,6 +11,10 @@ from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
 
+# TODO relative imports and add to setup.py and require_posgres etc like mongo
+# I had to do brew install postgresql first
+# add to the licensing google doc
+import psycopg2
 
 class PostgresTests(TestCase):
     """
@@ -40,7 +44,7 @@ class PostgresTests(TestCase):
             }
 
             internal_port = 5432
-            external_port = 5433
+            external_port = 5432
 
             postgres_application = {
                 u"version": 1,
@@ -82,6 +86,15 @@ class PostgresTests(TestCase):
                 ports=ports,
                 volumes=volumes,
             )
+            # psql postgres --host 172.16.255.250 --port 5432 --username postgres
+            conn = psycopg2.connect("host=172.16.255.250 user=postgres port=5432")
+            cur = conn.cursor()
+            cur.execute("CREATE DATABASE flockertest;")
+            import pdb; pdb.set_trace()
+            # TODO put these in cleanup
+
+            cur.close()
+            conn.close()
 
             d = assert_expected_deployment(self, {
                 node_1: set([unit]),
