@@ -46,8 +46,6 @@ class PostgresTests(TestCase):
 
     Similar to:
     http://doc-dev.clusterhq.com/gettingstarted/examples/postgres.html
-
-    # TODO Link to this file from postgres.rst
     """
     @require_flocker_cli
     def setUp(self):
