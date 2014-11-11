@@ -34,6 +34,7 @@ POSTGRES_UNIT = Unit(
         ]),
 )
 
+
 class PostgresTests(TestCase):
     """
     Tests for running and managing PostgreSQL with Flocker.
@@ -94,10 +95,8 @@ class PostgresTests(TestCase):
 
     def test_postgres(self):
         """
-        PostgreSQL and its data can be deployed and moved with FLocker.
+        PostgreSQL and its data can be deployed and moved with Flocker.
         """
-
-            # psql postgres --host 172.16.255.250 --port 5432 --username postgres
         from time import sleep
         # TODO get rid of this sleep
         sleep(5)
@@ -134,14 +133,24 @@ class PostgresTests(TestCase):
         }
 
         flocker_deploy(self, postgres_deployment_moved, self.postgres_application)
-        # TODO assert that postgres moves nodes
-        # TODO call this conn_2 or similar
-        # TODO get rid of this sleep
-        sleep(5)
-        conn = psycopg2.connect(host=self.node_2, user=u'postgres', port=external_port, database='flockertest')
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM testtable;")
-        # conn.commit()
-        self.assertEqual(cur.fetchone(), (3,))
-        cur.close()
-        conn.close()
+
+        verifying_deployment = assert_expected_deployment(self, {
+            self.node_1: set([]),
+            self.node_2: set([POSTGRES_UNIT]),
+        })
+
+        def verify_data_moves(client_1):
+            # TODO assert that postgres moves nodes
+            # TODO call this conn_2 or similar
+            # TODO get rid of this sleep
+            sleep(5)
+            conn = psycopg2.connect(host=self.node_2, user=u'postgres', port=external_port, database='flockertest')
+            cur = conn.cursor()
+            cur.execute("SELECT * FROM testtable;")
+            # conn.commit()
+            self.assertEqual(cur.fetchone(), (3,))
+            cur.close()
+            conn.close()
+
+        verifying = verifying_deployment.addCallback(verify_data_moves)
+        return verifying
