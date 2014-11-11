@@ -7,6 +7,7 @@ from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
 from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
+from flocker.testtools import loop_until
 
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
@@ -15,7 +16,7 @@ from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
 # TODO require_posgres etc like mongo
 # I had to do brew install postgresql first
 # add to the licensing google doc
-from psycopg2 import connect
+from psycopg2 import connect, OperationalError
 
 POSTGRES_INTERNAL_PORT = 5432
 POSTGRES_EXTERNAL_PORT = 5432
@@ -103,38 +104,22 @@ class PostgresTests(TestCase):
 
         return d
 
-    def _get_postgres_client(self, host, user, port, database=None):
+    def _get_postgres_connection(self, host, user, port, database=None):
         """
-        Returns a ``Deferred`` which fires with a ``MongoClient`` when one has been
-        created.
+        Returns a ``Deferred`` which fires with a psycopg2 connection when one
+        has been created.
 
-        See http://api.mongodb.org/python/current/api/pymongo/mongo_client.html#
-            pymongo.mongo_client.MongoClient
-        for more parameter information.
-
-        :param bytes host: Hostname or IP address of the instance to connect to.
-        :param int port: Port number on which to connect.
-
-        The tutorial says "If you get a connection refused error try again after a
-        few seconds; the application might take some time to fully start up."
-        and so here we wait until the client can be created.
-
-        # TODO document this properly
-        # TODO use **kwargs?
+        See http://pythonhosted.org//psycopg2/module.html#psycopg2.connect for
+        parameter information.
         """
-        from flocker.testtools import loop_until
-        def create_mongo_client():
-            from psycopg2 import OperationalError
+        def connect_to_postgres():
             try:
-                if database is None:
-                    return connect(host=host, user=user, port=port)
-                else:
-                    return connect(host=host, user=user, port=port,
-                        database=database)
+                return connect(host=host, user=user, port=port,
+                    database=database)
             except OperationalError:
                 return False
 
-        d = loop_until(create_mongo_client)
+        d = loop_until(connect_to_postgres)
         return d
 
     def test_postgres(self):
@@ -153,8 +138,8 @@ class PostgresTests(TestCase):
         column = b'testcolumn'
         data = 3
 
-        connecting_to_application = self._get_postgres_client(host=self.node_1,
-            user=user, port=POSTGRES_EXTERNAL_PORT)
+        connecting_to_application = self._get_postgres_connection(
+            host=self.node_1, user=user, port=POSTGRES_EXTERNAL_PORT)
 
         def create_database(connection_to_application):
             connection_to_application.autocommit = True
@@ -164,9 +149,8 @@ class PostgresTests(TestCase):
         connecting_to_application.addCallback(create_database)
 
         getting_database = connecting_to_application.addCallback(
-            lambda _: self._get_postgres_client(host=self.node_1, user=user,
-                port=POSTGRES_EXTERNAL_PORT, database=database)
-        )
+            lambda _: self._get_postgres_connection(host=self.node_1,
+                user=user, port=POSTGRES_EXTERNAL_PORT, database=database))
 
         def insert_data(connection_to_db):
             with connection_to_db as db_connection_node_1:
@@ -203,9 +187,8 @@ class PostgresTests(TestCase):
         moving_postgres = inserting_data.addCallback(move_postgres)
 
         getting_database_node_2 = moving_postgres.addCallback(
-            lambda _: self._get_postgres_client(host=self.node_2, user=user,
-                port=POSTGRES_EXTERNAL_PORT, database=database)
-        )
+            lambda _: self._get_postgres_connection(host=self.node_2,
+                user=user, port=POSTGRES_EXTERNAL_PORT, database=database))
 
         def verify_data_moves(connection_to_db):
             with connection_to_db as db_connection_node_2:
