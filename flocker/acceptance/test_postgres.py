@@ -58,7 +58,7 @@ class PostgresTests(TestCase):
                 },
             }
 
-            postgres_application = {
+            self.postgres_application = {
                 u"version": 1,
                 u"applications": {
                   u"postgres-volume-example": {
@@ -78,7 +78,7 @@ class PostgresTests(TestCase):
                 },
             }
 
-            flocker_deploy(self, postgres_deployment, postgres_application)
+            flocker_deploy(self, postgres_deployment, self.postgres_application)
 
         getting_nodes.addCallback(deploy)
         return getting_nodes
@@ -119,7 +119,6 @@ class PostgresTests(TestCase):
         cur.execute("SELECT * FROM testtable;")
         conn.commit()
         self.assertEqual(cur.fetchone(), (3,))
-        # TODO put closes in cleanup
 
         cur.close()
         conn.close()
@@ -132,8 +131,14 @@ class PostgresTests(TestCase):
             },
         }
 
-            #flocker_deploy(self, postgres_deployment_moved, postgres_application)
-
-
-
-        
+        flocker_deploy(self, postgres_deployment_moved, self.postgres_application)
+        # TODO call this conn_2 or similar
+        # TODO get rid of this sleep
+        sleep(5)
+        conn = psycopg2.connect(host=self.node_2, user=u'postgres', port=external_port, database='flockertest')
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM testtable;")
+        # conn.commit()
+        self.assertEqual(cur.fetchone(), (3,))
+        cur.close()
+        conn.close()
