@@ -87,11 +87,16 @@ class PostgresTests(TestCase):
                 volumes=volumes,
             )
             # psql postgres --host 172.16.255.250 --port 5432 --username postgres
-            conn = psycopg2.connect("host=172.16.255.250 user=postgres port=5432")
+            from time import sleep
+            # TODO get rid of this sleep
+            sleep(5)
+
+            conn = psycopg2.connect(host=node_1, user='postgres', port=external_port)
+
             cur = conn.cursor()
+            cur.execute('commit')
             cur.execute("CREATE DATABASE flockertest;")
-            import pdb; pdb.set_trace()
-            # TODO put these in cleanup
+            # TODO put closes in cleanup
 
             cur.close()
             conn.close()
