@@ -105,16 +105,15 @@ class PostgresTests(TestCase):
         SQL injection is not a real concern here, and it seems impossible
         to pass these variables via psycopg2
         """
-        from time import sleep
-        # TODO get rid of this sleep
-        sleep(5)
-
         database = b'flockertest'
         table = b'testtable'
         user = b'postgres'
         column = b'testcolumn'
         data = 3
 
+        from time import sleep
+        # TODO get rid of this sleep
+        sleep(5)
         conn = connect(host=self.node_1, user=user, port=external_port)
         conn.autocommit = True
         cur = conn.cursor()
@@ -152,7 +151,6 @@ class PostgresTests(TestCase):
         })
 
         def verify_data_moves(client_1):
-            # TODO assert that postgres moves nodes
             # TODO call this conn_2 or similar
             # TODO get rid of this sleep
             sleep(5)
