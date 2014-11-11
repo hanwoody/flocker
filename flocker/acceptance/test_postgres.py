@@ -91,10 +91,12 @@ class PostgresTests(TestCase):
             # TODO get rid of this sleep
             sleep(5)
 
-            conn = psycopg2.connect(host=node_1, user='postgres', port=external_port)
+            # TODO bytes or unicode (for this and filepaths?)
+            conn = psycopg2.connect(host=node_1, user=u'postgres', port=external_port)
+            conn.autocommit = True
 
             cur = conn.cursor()
-            cur.execute('commit')
+            import pdb; pdb.set_trace()
             cur.execute("CREATE DATABASE flockertest;")
             # TODO put closes in cleanup
 
