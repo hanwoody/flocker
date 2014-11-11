@@ -112,6 +112,16 @@ class PostgresTests(TestCase):
             cur.close()
             conn.close()
 
+            postgres_deployment_moved = {
+                u"version": 1,
+                u"nodes": {
+                    node_1: [],
+                    node_2: [u"postgres-volume-example"],
+                },
+            }
+
+            #flocker_deploy(self, postgres_deployment_moved, postgres_application)
+
             d = assert_expected_deployment(self, {
                 node_1: set([unit]),
                 node_2: set([]),
