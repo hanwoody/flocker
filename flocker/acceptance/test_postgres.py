@@ -31,7 +31,7 @@ POSTGRES_UNIT = Unit(
     container_image=POSTGRES_IMAGE + u':latest',
     ports=frozenset([
         PortMap(internal_port=internal_port,
-                external_port=external_port)
+                external_port=external_port),
         ]),
     volumes=frozenset([
         Volume(node_path=FilePath(b'/tmp'),
@@ -56,7 +56,7 @@ class PostgresTests(TestCase):
         """
         getting_nodes = get_nodes(num_nodes=2)
 
-        def deploy(node_ips):
+        def deploy_postgres(node_ips):
             self.node_1, self.node_2 = node_ips
 
             postgres_deployment = {
@@ -89,7 +89,7 @@ class PostgresTests(TestCase):
 
             flocker_deploy(self, postgres_deployment, self.postgres_application)
 
-        getting_nodes.addCallback(deploy)
+        getting_nodes.addCallback(deploy_postgres)
         return getting_nodes
 
     def test_deploy(self):
@@ -123,26 +123,27 @@ class PostgresTests(TestCase):
         from time import sleep
         # TODO get rid of this sleep
         sleep(5)
-        conn = connect(host=self.node_1, user=user, port=external_port)
-        conn.autocommit = True
-        cur = conn.cursor()
-        cur.execute("CREATE DATABASE " + database + ";")
-        cur.close()
-        conn.close()
+        connection_to_application = connect(host=self.node_1, user=user, port=external_port)
+        connection_to_application.autocommit = True
+        application_cursor = connection_to_application.cursor()
+        application_cursor.execute("CREATE DATABASE " + database + ";")
+        application_cursor.close()
+        connection_to_application.close()
 
-        conn = connect(host=self.node_1, user=user, port=external_port, database=database)
-        cur = conn.cursor()
+        db_connection_node_1 = connect(host=self.node_1, user=user,
+            port=external_port, database=database)
+        db_node_1_cursor = db_connection_node_1.cursor()
 
-        cur.execute("CREATE TABLE " + table + " (" + column + " int);")
-        cur.execute("INSERT INTO " + table + " (" + column + ") VALUES (%(data)s);", {'data': data})
-        cur.execute("SELECT * FROM " + table + ";")
-        conn.commit()
-        self.assertEqual(cur.fetchone()[0], data)
+        db_node_1_cursor.execute("CREATE TABLE " + table + " (" + column + " int);")
+        db_node_1_cursor.execute("INSERT INTO " + table + " (" + column + ") VALUES (%(data)s);", {'data': data})
+        db_node_1_cursor.execute("SELECT * FROM " + table + ";")
+        db_connection_node_1.commit()
+        self.assertEqual(db_node_1_cursor.fetchone()[0], data)
 
         # TODO Use context managers instead?
         # http://initd.org/psycopg/docs/usage.html#with-statement
-        cur.close()
-        conn.close()
+        db_node_1_cursor.close()
+        db_connection_node_1.close()
 
         postgres_deployment_moved = {
             u"version": 1,
@@ -152,7 +153,8 @@ class PostgresTests(TestCase):
             },
         }
 
-        flocker_deploy(self, postgres_deployment_moved, self.postgres_application)
+        flocker_deploy(self, postgres_deployment_moved,
+                       self.postgres_application)
 
         verifying_deployment = assert_expected_deployment(self, {
             self.node_1: set([]),
@@ -160,15 +162,15 @@ class PostgresTests(TestCase):
         })
 
         def verify_data_moves(client_1):
-            # TODO call this conn_2 or similar
             # TODO get rid of this sleep
             sleep(5)
-            conn = connect(host=self.node_2, user=user, port=external_port, database=database)
-            cur = conn.cursor()
-            cur.execute("SELECT * FROM " + table + ";")
-            self.assertEqual(cur.fetchone()[0], data)
-            cur.close()
-            conn.close()
+            db_connection_node_2 = connect(host=self.node_2, user=user,
+                port=external_port, database=database)
+            db_node_2_cursor = db_connection_node_2.cursor()
+            db_node_2_cursor.execute("SELECT * FROM " + table + ";")
+            self.assertEqual(db_node_2_cursor.fetchone()[0], data)
+            db_node_2_cursor.close()
+            db_connection_node_2.close()
 
         verifying = verifying_deployment.addCallback(verify_data_moves)
         return verifying
