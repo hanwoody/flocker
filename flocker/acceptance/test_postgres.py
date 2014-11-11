@@ -120,6 +120,8 @@ class PostgresTests(TestCase):
         conn.commit()
         self.assertEqual(cur.fetchone(), (3,))
 
+        # TODO Use context managers instead?
+        # http://initd.org/psycopg/docs/usage.html#with-statement
         cur.close()
         conn.close()
 
