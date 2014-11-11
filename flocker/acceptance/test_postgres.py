@@ -3,6 +3,8 @@
 """
 Tests for running and managing PostgreSQL with Flocker.
 """
+from unittest import skipUnless
+
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
@@ -13,10 +15,13 @@ from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
 
 # TODO add to setup.py
-# TODO require_posgres etc like mongo
 # I had to do brew install postgresql first
 # add to the licensing google doc
-from psycopg2 import connect, OperationalError
+try:
+    from psycopg2 import connect, OperationalError
+    PSYCOPG2_INSTALLED = True
+except ImportError:
+    PSYCOPG2_INSTALLED = False
 
 POSTGRES_INTERNAL_PORT = 5432
 POSTGRES_EXTERNAL_PORT = 5432
@@ -122,6 +127,7 @@ class PostgresTests(TestCase):
         d = loop_until(connect_to_postgres)
         return d
 
+    @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed")
     def test_postgres(self):
         """
         PostgreSQL and its data can be deployed and moved with Flocker. In
