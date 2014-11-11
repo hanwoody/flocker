@@ -101,32 +101,35 @@ class PostgresTests(TestCase):
     def test_postgres(self):
         """
         PostgreSQL and its data can be deployed and moved with Flocker.
+
+        SQL injection is not a real concern here, and it seems impossible
+        to pass these variables via psycopg2
         """
         from time import sleep
         # TODO get rid of this sleep
         sleep(5)
 
-        database = 'flockertest'
-        table = 'testtable'
-        user = 'postgres'
-        column = 'testcolumn'
+        database = b'flockertest'
+        table = b'testtable'
+        user = b'postgres'
+        column = b'testcolumn'
+        data = 3
 
         conn = connect(host=self.node_1, user=user, port=external_port)
         conn.autocommit = True
         cur = conn.cursor()
-        cur.execute("CREATE DATABASE flockertest;")
+        cur.execute("CREATE DATABASE " + database + ";")
         cur.close()
         conn.close()
 
         conn = connect(host=self.node_1, user=user, port=external_port, database=database)
         cur = conn.cursor()
-        # TODO use named arguments
-        import pdb; pdb.set_trace()
-        cur.execute("CREATE TABLE testtable (testcolumn int);")
-        cur.execute("INSERT INTO testtable (testcolumn) VALUES (3);")
-        cur.execute("SELECT * FROM testtable;")
+
+        cur.execute("CREATE TABLE " + table + " (" + column + " int);")
+        cur.execute("INSERT INTO " + table + " (" + column + ") VALUES (%(data)s);", {'data': data})
+        cur.execute("SELECT * FROM " + table + ";")
         conn.commit()
-        self.assertEqual(cur.fetchone(), (3,))
+        self.assertEqual(cur.fetchone()[0], data)
 
         # TODO Use context managers instead?
         # http://initd.org/psycopg/docs/usage.html#with-statement
@@ -155,9 +158,8 @@ class PostgresTests(TestCase):
             sleep(5)
             conn = connect(host=self.node_2, user=user, port=external_port, database=database)
             cur = conn.cursor()
-            cur.execute("SELECT * FROM testtable;")
-            # conn.commit()
-            self.assertEqual(cur.fetchone(), (3,))
+            cur.execute("SELECT * FROM " + table + ";")
+            self.assertEqual(cur.fetchone()[0], data)
             cur.close()
             conn.close()
 
