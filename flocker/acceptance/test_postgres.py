@@ -11,10 +11,11 @@ from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
 
-# TODO relative imports and add to setup.py and require_posgres etc like mongo
+# TODO add to setup.py
+# TODO require_posgres etc like mongo
 # I had to do brew install postgresql first
 # add to the licensing google doc
-import psycopg2
+from psycopg2 import connect
 
 internal_port = 5432
 external_port = 5432
@@ -105,19 +106,22 @@ class PostgresTests(TestCase):
         # TODO get rid of this sleep
         sleep(5)
 
-        # TODO bytes or unicode (for this and filepaths?)
-        conn = psycopg2.connect(host=self.node_1, user=u'postgres', port=external_port)
+        database = 'flockertest'
+        table = 'testtable'
+        user = 'postgres'
+        column = 'testcolumn'
+
+        conn = connect(host=self.node_1, user=user, port=external_port)
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute("CREATE DATABASE flockertest;")
         cur.close()
         conn.close()
 
-
-        conn = psycopg2.connect(host=self.node_1, user=u'postgres',
-                                port=external_port, database='flockertest')
+        conn = connect(host=self.node_1, user=user, port=external_port, database=database)
         cur = conn.cursor()
         # TODO use named arguments
+        import pdb; pdb.set_trace()
         cur.execute("CREATE TABLE testtable (testcolumn int);")
         cur.execute("INSERT INTO testtable (testcolumn) VALUES (3);")
         cur.execute("SELECT * FROM testtable;")
@@ -133,7 +137,7 @@ class PostgresTests(TestCase):
             u"version": 1,
             u"nodes": {
                 self.node_1: [],
-                self.node_2: [u"postgres-volume-example"],
+                self.node_2: [POSTGRES_APPLICATION],
             },
         }
 
@@ -149,7 +153,7 @@ class PostgresTests(TestCase):
             # TODO call this conn_2 or similar
             # TODO get rid of this sleep
             sleep(5)
-            conn = psycopg2.connect(host=self.node_2, user=u'postgres', port=external_port, database='flockertest')
+            conn = connect(host=self.node_2, user=user, port=external_port, database=database)
             cur = conn.cursor()
             cur.execute("SELECT * FROM testtable;")
             # conn.commit()
