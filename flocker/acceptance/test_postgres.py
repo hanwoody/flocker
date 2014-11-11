@@ -19,18 +19,22 @@ import psycopg2
 internal_port = 5432
 external_port = 5432
 
+POSTGRES_APPLICATION = u"postgres-volume-example"
+POSTGRES_IMAGE = u"postgres"
+POSTGRES_VOLUME_MOUNTPOINT = u'/var/lib/postgresql/data'
+
 POSTGRES_UNIT = Unit(
-    name=u"postgres-volume-example",
-    container_name=BASE_NAMESPACE + u"postgres-volume-example",
+    name=POSTGRES_APPLICATION,
+    container_name=BASE_NAMESPACE + POSTGRES_APPLICATION,
     activation_state=u'active',
-    container_image=u"postgres" + u':latest',
+    container_image=POSTGRES_IMAGE + u':latest',
     ports=frozenset([
         PortMap(internal_port=internal_port,
                 external_port=external_port)
         ]),
     volumes=frozenset([
         Volume(node_path=FilePath(b'/tmp'),
-           container_path=FilePath(u'/var/lib/postgresql/data')),
+               container_path=FilePath(POSTGRES_VOLUME_MOUNTPOINT)),
         ]),
 )
 
@@ -54,7 +58,7 @@ class PostgresTests(TestCase):
             postgres_deployment = {
                 u"version": 1,
                 u"nodes": {
-                    self.node_1: [u"postgres-volume-example"],
+                    self.node_1: [POSTGRES_APPLICATION],
                     self.node_2: [],
                 },
             }
@@ -62,18 +66,18 @@ class PostgresTests(TestCase):
             self.postgres_application = {
                 u"version": 1,
                 u"applications": {
-                  u"postgres-volume-example": {
-                    u"image": u"postgres",
-                    u"ports": [{
-                        u"internal": internal_port,
-                        u"external": external_port,
+                    POSTGRES_APPLICATION: {
+                        u"image": POSTGRES_IMAGE,
+                        u"ports": [{
+                            u"internal": internal_port,
+                            u"external": external_port,
                     }],
                     "volume": {
-                      # The location within the container where the data
-                      # volume will be mounted; see:
-                      # https://github.com/docker-library/postgres/blob/docker/
-                      # Dockerfile.template
-                      "mountpoint": "/var/lib/postgresql/data",
+                        # The location within the container where the data
+                        # volume will be mounted; see:
+                        # https://github.com/docker-library/postgres/blob/
+                        # docker/Dockerfile.template
+                        "mountpoint": POSTGRES_VOLUME_MOUNTPOINT,
                       },
                     },
                 },
@@ -110,7 +114,8 @@ class PostgresTests(TestCase):
         conn.close()
 
 
-        conn = psycopg2.connect(host=self.node_1, user=u'postgres', port=external_port, database='flockertest')
+        conn = psycopg2.connect(host=self.node_1, user=u'postgres',
+                                port=external_port, database='flockertest')
         cur = conn.cursor()
         # TODO use named arguments
         cur.execute("CREATE TABLE testtable (testcolumn int);")
