@@ -17,8 +17,8 @@ from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
 # add to the licensing google doc
 from psycopg2 import connect
 
-internal_port = 5432
-external_port = 5432
+POSTGRES_INTERNAL_PORT = 5432
+POSTGRES_EXTERNAL_PORT = 5432
 
 POSTGRES_APPLICATION = u"postgres-volume-example"
 POSTGRES_IMAGE = u"postgres"
@@ -30,8 +30,8 @@ POSTGRES_UNIT = Unit(
     activation_state=u'active',
     container_image=POSTGRES_IMAGE + u':latest',
     ports=frozenset([
-        PortMap(internal_port=internal_port,
-                external_port=external_port),
+        PortMap(internal_port=POSTGRES_INTERNAL_PORT,
+                external_port=POSTGRES_EXTERNAL_PORT),
         ]),
     volumes=frozenset([
         Volume(node_path=FilePath(b'/tmp'),
@@ -73,8 +73,8 @@ class PostgresTests(TestCase):
                     POSTGRES_APPLICATION: {
                         u"image": POSTGRES_IMAGE,
                         u"ports": [{
-                            u"internal": internal_port,
-                            u"external": external_port,
+                            u"internal": POSTGRES_INTERNAL_PORT,
+                            u"external": POSTGRES_EXTERNAL_PORT,
                     }],
                     "volume": {
                         # The location within the container where the data
@@ -87,7 +87,8 @@ class PostgresTests(TestCase):
                 },
             }
 
-            flocker_deploy(self, postgres_deployment, self.postgres_application)
+            flocker_deploy(self, postgres_deployment,
+                           self.postgres_application)
 
         getting_nodes.addCallback(deploy_postgres)
         return getting_nodes
@@ -123,7 +124,8 @@ class PostgresTests(TestCase):
         from time import sleep
         # TODO get rid of this sleep
         sleep(5)
-        connection_to_application = connect(host=self.node_1, user=user, port=external_port)
+        connection_to_application = connect(host=self.node_1, user=user,
+            port=POSTGRES_EXTERNAL_PORT)
         connection_to_application.autocommit = True
         application_cursor = connection_to_application.cursor()
         application_cursor.execute("CREATE DATABASE " + database + ";")
@@ -131,11 +133,13 @@ class PostgresTests(TestCase):
         connection_to_application.close()
 
         db_connection_node_1 = connect(host=self.node_1, user=user,
-            port=external_port, database=database)
+            port=POSTGRES_EXTERNAL_PORT, database=database)
         db_node_1_cursor = db_connection_node_1.cursor()
 
-        db_node_1_cursor.execute("CREATE TABLE " + table + " (" + column + " int);")
-        db_node_1_cursor.execute("INSERT INTO " + table + " (" + column + ") VALUES (%(data)s);", {'data': data})
+        db_node_1_cursor.execute("CREATE TABLE " + table + " (" + column +
+                                 " int);")
+        db_node_1_cursor.execute("INSERT INTO " + table + " (" + column +
+                                 ") VALUES (%(data)s);", {'data': data})
         db_node_1_cursor.execute("SELECT * FROM " + table + ";")
         db_connection_node_1.commit()
         self.assertEqual(db_node_1_cursor.fetchone()[0], data)
@@ -165,7 +169,7 @@ class PostgresTests(TestCase):
             # TODO get rid of this sleep
             sleep(5)
             db_connection_node_2 = connect(host=self.node_2, user=user,
-                port=external_port, database=database)
+                port=POSTGRES_EXTERNAL_PORT, database=database)
             db_node_2_cursor = db_connection_node_2.cursor()
             db_node_2_cursor.execute("SELECT * FROM " + table + ";")
             self.assertEqual(db_node_2_cursor.fetchone()[0], data)
