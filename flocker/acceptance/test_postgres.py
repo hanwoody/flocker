@@ -78,14 +78,14 @@ class PostgresTests(TestCase):
                         u"ports": [{
                             u"internal": POSTGRES_INTERNAL_PORT,
                             u"external": POSTGRES_EXTERNAL_PORT,
-                    }],
-                    "volume": {
-                        # The location within the container where the data
-                        # volume will be mounted; see:
-                        # https://github.com/docker-library/postgres/blob/
-                        # docker/Dockerfile.template
-                        "mountpoint": POSTGRES_VOLUME_MOUNTPOINT,
-                      },
+                        }],
+                        u"volume": {
+                            # The location within the container where the data
+                            # volume will be mounted; see:
+                            # https://github.com/docker-library/postgres/blob/
+                            # docker/Dockerfile.template
+                            u"mountpoint": POSTGRES_VOLUME_MOUNTPOINT,
+                        },
                     },
                 },
             }

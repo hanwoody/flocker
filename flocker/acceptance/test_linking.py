@@ -3,9 +3,10 @@
 """
 Tests for linking containers.
 """
+from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
-from flocker.node._docker import BASE_NAMESPACE, Unit
+from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
 
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
@@ -33,11 +34,13 @@ ELASTICSEARCH_UNIT = Unit(
 )
 
 LOGSTASH_INTERNAL_PORT = 5000
-LOGSTASH_INTERNAL_PORT = 5000
+LOGSTASH_EXTERNAL_PORT = 5000
+
+LOGSTASH_LOCAL_PORT = 9200
+LOGSTASH_REMOTE_PORT = 9200
 
 LOGSTASH_APPLICATION = u"logstash"
-LOGSTASH_IMAGE = u"LOGSTASH"
-LOGSTASH_VOLUME_MOUNTPOINT = u'/var/lib/LOGSTASH/data'
+LOGSTASH_IMAGE = u"clusterhq/logstash"
 
 LOGSTASH_UNIT = Unit(
     name=LOGSTASH_APPLICATION,
@@ -48,18 +51,14 @@ LOGSTASH_UNIT = Unit(
         PortMap(internal_port=LOGSTASH_INTERNAL_PORT,
                 external_port=LOGSTASH_INTERNAL_PORT),
         ]),
-    volumes=frozenset([
-        Volume(node_path=FilePath(b'/tmp'),
-               container_path=FilePath(LOGSTASH_VOLUME_MOUNTPOINT)),
-        ]),
+    volumes=frozenset([]),
 )
 
 KIBANA_INTERNAL_PORT = 8080
 KIBANA_EXTERNAL_PORT = 80
 
-KIBANA_APPLICATION = u"KIBANA-volume-example"
-KIBANA_IMAGE = u"KIBANA"
-KIBANA_VOLUME_MOUNTPOINT = u'/var/lib/KIBANA/data'
+KIBANA_APPLICATION = u"kibana"
+KIBANA_IMAGE = u"clusterhq/kibana"
 
 KIBANA_UNIT = Unit(
     name=KIBANA_APPLICATION,
@@ -70,10 +69,7 @@ KIBANA_UNIT = Unit(
         PortMap(internal_port=KIBANA_INTERNAL_PORT,
                 external_port=KIBANA_EXTERNAL_PORT),
         ]),
-    volumes=frozenset([
-        Volume(node_path=FilePath(b'/tmp'),
-               container_path=FilePath(KIBANA_VOLUME_MOUNTPOINT)),
-        ]),
+    volumes=frozenset([]),
 )
 
 class LinkingTests(TestCase):
@@ -91,22 +87,54 @@ class LinkingTests(TestCase):
         Containers can be linked to using network ports.
         """
         elk_application = {
-
-        }
-
-        elk_deployment = {
             u"version": 1,
-            u"nodes": {
-                self.node_1: [ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
-                    KIBANA_APPLICATION],
-                self.node_2: [],
+            u"applications": {
+                ELASTICSEARCH_APPLICATION: {
+                    u"image": ELASTICSEARCH_IMAGE,
+                    u"ports": [{
+                        u"internal": ELASTICSEARCH_INTERNAL_PORT,
+                        u"external": ELASTICSEARCH_EXTERNAL_PORT,
+                    }],
+                    u"volume": {
+                        u"mountpoint": ELASTICSEARCH_VOLUME_MOUNTPOINT,
+                    },
+                },
+                LOGSTASH_APPLICATION: {
+                    u"image": LOGSTASH_IMAGE,
+                    u"ports": [{
+                        u"internal": LOGSTASH_INTERNAL_PORT,
+                        u"external": LOGSTASH_EXTERNAL_PORT,
+                    }],
+                    u"links": [{
+                        u"local_port": LOGSTASH_LOCAL_PORT,
+                        u"remote_port": LOGSTASH_REMOTE_PORT,
+                        u"alias": u"es",
+                    }],
+                },
+                KIBANA_APPLICATION: {
+                    u"image": ELASTICSEARCH_IMAGE,
+                    u"ports": [{
+                        u"internal": ELASTICSEARCH_INTERNAL_PORT,
+                        u"external": ELASTICSEARCH_EXTERNAL_PORT,
+                    }],
+                },
             },
         }
 
         getting_nodes = get_nodes(num_nodes=2)
 
         def deploy(node_ips):
-            # flocker-deploy elk-deployment.yml elk-application.yml
+            node_1, node_2 = node_ips
+            elk_deployment = {
+                u"version": 1,
+                u"nodes": {
+                    node_1: [ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
+                        KIBANA_APPLICATION],
+                    node_2: [],
+                },
+            }
+
+            flocker_deploy(self, elk_deployment, elk_application)
             # check that there is nothing in kibana
             # telnet to add some sample data to Logstash
             # check that there is some data in kibana
@@ -114,7 +142,6 @@ class LinkingTests(TestCase):
             # flocker-deploy elk-deployment-moved.yml elk-application.yml
             # check that it is on the new host
             # check that there is some data in kibana
-            pass
 
         getting_nodes.addCallback(deploy)
         return getting_nodes
