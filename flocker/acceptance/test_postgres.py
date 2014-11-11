@@ -132,6 +132,7 @@ class PostgresTests(TestCase):
         }
 
         flocker_deploy(self, postgres_deployment_moved, self.postgres_application)
+        # TODO assert that postgres moves nodes
         # TODO call this conn_2 or similar
         # TODO get rid of this sleep
         sleep(5)
