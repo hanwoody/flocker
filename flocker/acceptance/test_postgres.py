@@ -94,10 +94,19 @@ class PostgresTests(TestCase):
             # TODO bytes or unicode (for this and filepaths?)
             conn = psycopg2.connect(host=node_1, user=u'postgres', port=external_port)
             conn.autocommit = True
-
             cur = conn.cursor()
-            import pdb; pdb.set_trace()
             cur.execute("CREATE DATABASE flockertest;")
+            cur.close()
+            conn.close()
+
+
+            conn = psycopg2.connect(host=node_1, user=u'postgres', port=external_port, database='flockertest')
+            cur = conn.cursor()
+            cur.execute("CREATE TABLE testtable (testcolumn int);")
+            cur.execute("INSERT INTO testtable (testcolumn) VALUES (3);")
+            cur.execute("SELECT * FROM testtable;")
+            conn.commit()
+            self.assertEqual(cur.fetchone(), (3,))
             # TODO put closes in cleanup
 
             cur.close()
