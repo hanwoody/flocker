@@ -122,30 +122,22 @@ class PostgresTests(TestCase):
         from time import sleep
         # TODO get rid of this sleep
         sleep(5)
-        connection_to_application = connect(host=self.node_1, user=user,
-            port=POSTGRES_EXTERNAL_PORT)
-        connection_to_application.autocommit = True
-        application_cursor = connection_to_application.cursor()
-        application_cursor.execute("CREATE DATABASE " + database + ";")
-        application_cursor.close()
-        connection_to_application.close()
+        with connect(host=self.node_1, user=user,
+            port=POSTGRES_EXTERNAL_PORT) as connection_to_application:
+            connection_to_application.autocommit = True
+            with connection_to_application.cursor() as application_cursor:
+                application_cursor.execute("CREATE DATABASE " + database + ";")
 
-        db_connection_node_1 = connect(host=self.node_1, user=user,
-            port=POSTGRES_EXTERNAL_PORT, database=database)
-        db_node_1_cursor = db_connection_node_1.cursor()
-
-        db_node_1_cursor.execute("CREATE TABLE " + table + " (" + column +
-                                 " int);")
-        db_node_1_cursor.execute("INSERT INTO " + table + " (" + column +
-                                 ") VALUES (%(data)s);", {'data': data})
-        db_node_1_cursor.execute("SELECT * FROM " + table + ";")
-        db_connection_node_1.commit()
-        self.assertEqual(db_node_1_cursor.fetchone()[0], data)
-
-        # TODO Use context managers instead?
-        # http://initd.org/psycopg/docs/usage.html#with-statement
-        db_node_1_cursor.close()
-        db_connection_node_1.close()
+        with connect(host=self.node_1, user=user, port=POSTGRES_EXTERNAL_PORT,
+                     database=database) as db_connection_node_1:
+            with db_connection_node_1.cursor() as db_node_1_cursor:
+                db_node_1_cursor.execute("CREATE TABLE " + table + " (" +
+                    column + " int);")
+                db_node_1_cursor.execute("INSERT INTO " + table + " (" +
+                    column + ") VALUES (%(data)s);", {'data': data})
+                db_node_1_cursor.execute("SELECT * FROM " + table + ";")
+                db_connection_node_1.commit()
+                self.assertEqual(db_node_1_cursor.fetchone()[0], data)
 
         postgres_deployment_moved = {
             u"version": 1,
@@ -166,13 +158,12 @@ class PostgresTests(TestCase):
         def verify_data_moves(client_1):
             # TODO get rid of this sleep
             sleep(5)
-            db_connection_node_2 = connect(host=self.node_2, user=user,
-                port=POSTGRES_EXTERNAL_PORT, database=database)
-            db_node_2_cursor = db_connection_node_2.cursor()
-            db_node_2_cursor.execute("SELECT * FROM " + table + ";")
-            self.assertEqual(db_node_2_cursor.fetchone()[0], data)
-            db_node_2_cursor.close()
-            db_connection_node_2.close()
+            with connect(host=self.node_2, user=user,
+                         port=POSTGRES_EXTERNAL_PORT,
+                         database=database) as db_connection_node_2:
+                with db_connection_node_2.cursor() as db_node_2_cursor:
+                    db_node_2_cursor.execute("SELECT * FROM " + table + ";")
+                    self.assertEqual(db_node_2_cursor.fetchone()[0], data)
 
         verifying = verifying_deployment.addCallback(verify_data_moves)
         return verifying
