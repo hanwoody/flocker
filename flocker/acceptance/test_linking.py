@@ -112,10 +112,10 @@ class LinkingTests(TestCase):
                     }],
                 },
                 KIBANA_APPLICATION: {
-                    u"image": ELASTICSEARCH_IMAGE,
+                    u"image": KIBANA_IMAGE,
                     u"ports": [{
-                        u"internal": ELASTICSEARCH_INTERNAL_PORT,
-                        u"external": ELASTICSEARCH_EXTERNAL_PORT,
+                        u"internal": KIBANA_INTERNAL_PORT,
+                        u"external": KIBANA_EXTERNAL_PORT,
                     }],
                 },
             },
