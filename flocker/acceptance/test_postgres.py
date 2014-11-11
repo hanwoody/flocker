@@ -14,8 +14,7 @@ from flocker.testtools import loop_until
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
 
-# TODO add to setup.py
-# I had to do brew install postgresql first
+# TODO I had to do brew install postgresql first
 # add to the licensing google doc
 try:
     from psycopg2 import connect, OperationalError
