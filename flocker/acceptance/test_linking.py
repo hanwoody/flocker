@@ -25,7 +25,26 @@ class LinkingTests(TestCase):
         """
         Containers can be linked to using network ports.
         """
+        elk_application = {
+
+        }
+
+        elk_deployment = {
+
+        }
+
         getting_nodes = get_nodes(num_nodes=2)
+
+        def deploy(node_ips):
+            # flocker-deploy elk-deployment.yml elk-application.yml
+            # check that there is nothing in kibana
+            # telnet to add some sample data to Logstash
+            # check that there is some data in kibana
+            # elk-deployment-moved.yml
+            # flocker-deploy elk-deployment-moved.yml elk-application.yml
+            # check that it is on the new host
+            # check that there is some data in kibana
+            pass
 
         getting_nodes.addCallback(deploy)
         return getting_nodes
