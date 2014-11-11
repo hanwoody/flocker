@@ -51,6 +51,9 @@ class PostgresTests(TestCase):
     """
     @require_flocker_cli
     def setUp(self):
+        """
+        Deploy PostgreSQL to a node.
+        """
         getting_nodes = get_nodes(num_nodes=2)
 
         def deploy(node_ips):
@@ -90,7 +93,10 @@ class PostgresTests(TestCase):
         return getting_nodes
 
     def test_deploy(self):
-        # TODO docstrings
+        """
+        Verify that Docker reports that PostgreSQL is running on one node and
+        not another.
+        """
         d = assert_expected_deployment(self, {
             self.node_1: set([POSTGRES_UNIT]),
             self.node_2: set([]),
@@ -100,11 +106,14 @@ class PostgresTests(TestCase):
 
     def test_postgres(self):
         """
-        PostgreSQL and its data can be deployed and moved with Flocker.
-
-        SQL injection is not a real concern here, and it seems impossible
-        to pass these variables via psycopg2
+        PostgreSQL and its data can be deployed and moved with Flocker. In
+        particular, if PostgreSQL is deployed to a node, and data added to it,
+        and then the application is moved to another node, the data remains
+        available.
         """
+        # SQL injection is not a real concern here, and it seems impossible
+        # to pass some these variables via psycopg2 so string concatenation
+        # is used.
         database = b'flockertest'
         table = b'testtable'
         user = b'postgres'
