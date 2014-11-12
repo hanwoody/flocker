@@ -3,6 +3,8 @@
 """
 Tests for linking containers.
 """
+from time import sleep
+
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
@@ -139,41 +141,56 @@ class LinkingTests(TestCase):
                 },
             }
 
-            # TODO pip install python-logstash
             # pip install elasticsearch
-            # TODO try telnetlib
             flocker_deploy(self, elk_deployment, elk_application)
             from datetime import datetime
             from elasticsearch import Elasticsearch
 
-            # by default we connect to localhost:9200
+            def get_log_messages(es):
+                """
+                Takes elasticsearch instance, returns log messages.
+                """
+                # TODO force elasticsearch index? else wait in loop
+                # until what?
+                sleep(15)
+                search_results = es.search(doc_type=u'logs', _source_include=[u'message'])
+                # TODO sort by date instead of returning a set?
+                return set([hit[u'_source'][u'message'] for hit in search_results[u'hits'][u'hits']])
 
             es = Elasticsearch(hosts=[{"host": node_1, "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            from time import sleep
             # TODO Remove this sleep, it waits until ES is ready to be searched
             # and telnet doesn't give a connection refused
             sleep(30)
-            nothing = es.search(doc_type=u'logs')
-            # {u'hits': {u'hits': [], u'total': 0, u'max_score': 0.0}, u'_shards': {u'successful': 0, u'failed': 0, u'total': 0}, u'took': 3, u'timed_out': False}
-            # assert that total is 0?
-            import telnetlib
+            nothing = get_log_messages(es)
+            self.assertEqual(set([]), get_log_messages(es))
 
-            tn = telnetlib.Telnet(host=node_1, port=LOGSTASH_EXTERNAL_PORT)
-            tn.write(str({"firstname": "Joe", "lastname": "Bloggs"}) + "\n")
-            tn.write(str({"firstname": "Fred", "lastname": "Bloggs"}) + "\n")
-            tn.write("exit\n")
-            search_results = es.search(doc_type=u'logs',
-                                       _source_include=[u'message'])
+            from telnetlib import Telnet
 
-            expected = [
-                {u'message': u"{'lastname': 'Bloggs', 'firstname': 'Fred'}"},
-                {u'message': u"{'lastname': 'Bloggs', 'firstname': 'Joe'}"},
-            ]
-            self.assertEqual(
-                expected,
-                [hit['_source'] for hit in search_results['hits']['hits']]
-            )
-            # {u'hits': {u'hits': [{u'_score': 1.0, u'_type': u'logs', u'_id': u'QRTWmnsRSZWudCkoer4Dgg', u'_source': {u'host': u'172.16.255.1:52597', u'message': u"{'lastname': 'Bloggs', 'firstname': 'Fred'}", u'@version': u'1', u'@timestamp': u'2014-11-12T10:57:04.263Z'}, u'_index': u'logstash-2014.11.12'}, {u'_score': 1.0, u'_type': u'logs', u'_id': u'scrWmNelQsmBHM9YHF5bHw', u'_source': {u'host': u'172.16.255.1:52597', u'message': u"{'lastname': 'Bloggs', 'firstname': 'Joe'}", u'@version': u'1', u'@timestamp': u'2014-11-12T10:56:58.900Z'}, u'_index': u'logstash-2014.11.12'}], u'total': 2, u'max_score': 1.0}, u'_shards': {u'successful': 5, u'failed': 0, u'total': 5}, u'took': 83, u'timed_out': False}
+            telnet = Telnet(host=node_1, port=LOGSTASH_EXTERNAL_PORT)
+            # TODO pip install python-logstash instead of telnet?
+            data_joe = str({"firstname": "Joe", "lastname": "Bloggs"})
+            data_fred = str({"firstname": "Fred", "lastname": "Bloggs"})
+            telnet.write(data_joe + "\n")
+            telnet.write(data_fred + "\n")
+            # TODO quit the telnet connection?
+
+            self.assertEqual(set([data_joe, data_fred]), get_log_messages(es))
+
+            elk_deployment_moved = {
+                u"version": 1,
+                u"nodes": {
+                    node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
+                    node_2: [ELASTICSEARCH_APPLICATION],
+                },
+            }
+
+            flocker_deploy(self, elk_deployment_moved, elk_application)
+            # d = assert_expected_deployment(self, {
+            #     node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
+            #     node_2: set([ELASTICSEARCH_UNIT]),
+            # })
+            #
+            # return d
 
             # d = assert_expected_deployment(self, {
             #     node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
