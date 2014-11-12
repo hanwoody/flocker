@@ -134,7 +134,15 @@ class LinkingTests(TestCase):
                 },
             }
 
+            # TODO pip install python-logstash
             flocker_deploy(self, elk_deployment, elk_application)
+
+            d = assert_expected_deployment(self, {
+                node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
+                node_2: set([]),
+            })
+
+            return d
             # check that there is nothing in kibana
             # telnet to add some sample data to Logstash
             # check that there is some data in kibana
