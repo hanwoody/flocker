@@ -80,6 +80,11 @@ class LinkingTests(TestCase):
     http://doc-dev.clusterhq.com/gettingstarted/examples/linking.html
 
     # TODO Link to this file from linking.rst
+
+    # TODO proper docstring
+    # This has the flaw of not actually testing Kibana. It does connect the
+    # linking feature - between elasticsearch and logstash, and the kibana
+    # thing needs to be set up right (this test verifies that it is running)
     """
     @require_flocker_cli
     def test_linking(self):
@@ -135,14 +140,37 @@ class LinkingTests(TestCase):
             }
 
             # TODO pip install python-logstash
+            # pip install elasticsearch
+            # TODO try telnetlib
             flocker_deploy(self, elk_deployment, elk_application)
+            from datetime import datetime
+            from elasticsearch import Elasticsearch
 
-            d = assert_expected_deployment(self, {
-                node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
-                node_2: set([]),
-            })
+            # by default we connect to localhost:9200
 
-            return d
+            es = Elasticsearch(hosts=[{"host": node_1, "port": ELASTICSEARCH_EXTERNAL_PORT}])
+            from time import sleep
+            # TODO Remove this sleep, it waits until ES is ready to be searched
+            # and telnet doesn't give a connection refused
+            sleep(30)
+            nothing = es.search(doc_type=u'logs')
+            # {u'hits': {u'hits': [], u'total': 0, u'max_score': 0.0}, u'_shards': {u'successful': 0, u'failed': 0, u'total': 0}, u'took': 3, u'timed_out': False}
+            # assert that total is 0?
+            import telnetlib
+
+            tn = telnetlib.Telnet(host=node_1, port=LOGSTASH_EXTERNAL_PORT)
+            tn.write(str({"firstname": "Joe", "lastname": "Bloggs"}) + "\n")
+            tn.write(str({"firstname": "Fred", "lastname": "Bloggs"}) + "\n")
+            tn.write("exit\n")
+            something = es.search(doc_type=u'logs')
+            # {u'hits': {u'hits': [{u'_score': 1.0, u'_type': u'logs', u'_id': u'QRTWmnsRSZWudCkoer4Dgg', u'_source': {u'host': u'172.16.255.1:52597', u'message': u"{'lastname': 'Bloggs', 'firstname': 'Fred'}", u'@version': u'1', u'@timestamp': u'2014-11-12T10:57:04.263Z'}, u'_index': u'logstash-2014.11.12'}, {u'_score': 1.0, u'_type': u'logs', u'_id': u'scrWmNelQsmBHM9YHF5bHw', u'_source': {u'host': u'172.16.255.1:52597', u'message': u"{'lastname': 'Bloggs', 'firstname': 'Joe'}", u'@version': u'1', u'@timestamp': u'2014-11-12T10:56:58.900Z'}, u'_index': u'logstash-2014.11.12'}], u'total': 2, u'max_score': 1.0}, u'_shards': {u'successful': 5, u'failed': 0, u'total': 5}, u'took': 83, u'timed_out': False}
+
+            # d = assert_expected_deployment(self, {
+            #     node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
+            #     node_2: set([]),
+            # })
+            #
+            # return d
             # check that there is nothing in kibana
             # telnet to add some sample data to Logstash
             # check that there is some data in kibana
