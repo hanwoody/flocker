@@ -3,7 +3,11 @@
 """
 Tests for linking containers.
 """
+from telnetlib import Telnet
 from time import sleep
+
+# TODO add this to setup.py, do the whole @require Elasticsearch
+from elasticsearch import Elasticsearch
 
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
@@ -141,10 +145,7 @@ class LinkingTests(TestCase):
                 },
             }
 
-            # pip install elasticsearch
             flocker_deploy(self, elk_deployment, elk_application)
-            from datetime import datetime
-            from elasticsearch import Elasticsearch
 
             def get_log_messages(es):
                 """
@@ -154,27 +155,24 @@ class LinkingTests(TestCase):
                 # until what?
                 sleep(15)
                 search_results = es.search(doc_type=u'logs', _source_include=[u'message'])
-                # TODO sort by date instead of returning a set?
                 return set([hit[u'_source'][u'message'] for hit in search_results[u'hits'][u'hits']])
 
+            # TODO Remove this sleep, it waits until telnet doesn't give a connection refused and ES can be connected to
+            sleep(20)
             es = Elasticsearch(hosts=[{"host": node_1, "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            # TODO Remove this sleep, it waits until ES is ready to be searched
-            # and telnet doesn't give a connection refused
-            sleep(30)
-            nothing = get_log_messages(es)
             self.assertEqual(set([]), get_log_messages(es))
-
-            from telnetlib import Telnet
 
             telnet = Telnet(host=node_1, port=LOGSTASH_EXTERNAL_PORT)
             # TODO pip install python-logstash instead of telnet?
-            data_joe = str({"firstname": "Joe", "lastname": "Bloggs"})
-            data_fred = str({"firstname": "Fred", "lastname": "Bloggs"})
-            telnet.write(data_joe + "\n")
-            telnet.write(data_fred + "\n")
+            messages = set([
+                str({"firstname": "Joe", "lastname": "Bloggs"}),
+                str({"firstname": "Fred", "lastname": "Bloggs"})
+            ])
+            for message in messages:
+                telnet.write(message + "\n")
             # TODO quit the telnet connection?
 
-            self.assertEqual(set([data_joe, data_fred]), get_log_messages(es))
+            self.assertEqual(messages, get_log_messages(es))
 
             elk_deployment_moved = {
                 u"version": 1,
@@ -198,13 +196,9 @@ class LinkingTests(TestCase):
             # })
             #
             # return d
-            # check that there is nothing in kibana
-            # telnet to add some sample data to Logstash
-            # check that there is some data in kibana
-            # elk-deployment-moved.yml
-            # flocker-deploy elk-deployment-moved.yml elk-application.yml
-            # check that it is on the new host
-            # check that there is some data in kibana
+
+            # es_node_2 = Elasticsearch(hosts=[{"host": node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
+            # self.assertEqual(messages, get_log_messages(es_node_2))
 
         getting_nodes.addCallback(deploy)
         return getting_nodes
