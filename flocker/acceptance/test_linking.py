@@ -188,6 +188,7 @@ class LinkingTests(TestCase):
         # TODO Remove this sleep, it waits until telnet doesn't give a
         # connection refused
         sleep(20)
+        # Read until "Connected to 172.16.255.241"?
         telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
         # TODO pip install python-logstash instead of telnet?
         messages = set([
