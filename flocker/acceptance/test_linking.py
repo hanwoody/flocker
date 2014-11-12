@@ -93,112 +93,122 @@ class LinkingTests(TestCase):
     # thing needs to be set up right (this test verifies that it is running)
     """
     @require_flocker_cli
+    def setUp(self):
+        """
+        TODO
+        """
+        getting_nodes = get_nodes(num_nodes=2)
+
+        def deploy_elk(node_ips):
+            self.node_1, self.node_2 = node_ips
+
+            elk_deployment = {
+                u"version": 1,
+                u"nodes": {
+                    self.node_1: [ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
+                        KIBANA_APPLICATION],
+                    self.node_2: [],
+                },
+            }
+
+            self.elk_application = {
+                u"version": 1,
+                u"applications": {
+                    ELASTICSEARCH_APPLICATION: {
+                        u"image": ELASTICSEARCH_IMAGE,
+                        u"ports": [{
+                            u"internal": ELASTICSEARCH_INTERNAL_PORT,
+                            u"external": ELASTICSEARCH_EXTERNAL_PORT,
+                        }],
+                        u"volume": {
+                            u"mountpoint": ELASTICSEARCH_VOLUME_MOUNTPOINT,
+                        },
+                    },
+                    LOGSTASH_APPLICATION: {
+                        u"image": LOGSTASH_IMAGE,
+                        u"ports": [{
+                            u"internal": LOGSTASH_INTERNAL_PORT,
+                            u"external": LOGSTASH_EXTERNAL_PORT,
+                        }],
+                        u"links": [{
+                            u"local_port": LOGSTASH_LOCAL_PORT,
+                            u"remote_port": LOGSTASH_REMOTE_PORT,
+                            u"alias": u"es",
+                        }],
+                    },
+                    KIBANA_APPLICATION: {
+                        u"image": KIBANA_IMAGE,
+                        u"ports": [{
+                            u"internal": KIBANA_INTERNAL_PORT,
+                            u"external": KIBANA_EXTERNAL_PORT,
+                        }],
+                    },
+                },
+            }
+
+            flocker_deploy(self, elk_deployment, self.elk_application)
+
+        getting_nodes.addCallback(deploy_elk)
+        return getting_nodes
+
+    def test_deploy(self):
+        """
+        # TODO
+        """
+        d = assert_expected_deployment(self, {
+            self.node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
+            self.node_2: set([]),
+        })
+
+        return d
+
     def test_linking(self):
         """
         Containers can be linked to using network ports.
         """
-        elk_application = {
+        def get_log_messages(es):
+            """
+            Takes elasticsearch instance, returns log messages.
+            """
+            # TODO force elasticsearch index? else wait in loop
+            # until what?
+            sleep(15)
+            search_results = es.search(doc_type=u'logs', _source_include=[u'message'])
+            return set([hit[u'_source'][u'message'] for hit in search_results[u'hits'][u'hits']])
+
+        # TODO Remove this sleep, it waits until telnet doesn't give a connection refused and ES can be connected to
+        sleep(20)
+        es = Elasticsearch(hosts=[{"host": self.node_1, "port": ELASTICSEARCH_EXTERNAL_PORT}])
+        self.assertEqual(set([]), get_log_messages(es))
+
+        telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
+        # TODO pip install python-logstash instead of telnet?
+        messages = set([
+            str({"firstname": "Joe", "lastname": "Bloggs"}),
+            str({"firstname": "Fred", "lastname": "Bloggs"})
+        ])
+        for message in messages:
+            telnet.write(message + "\n")
+        # TODO quit the telnet connection?
+
+        self.assertEqual(messages, get_log_messages(es))
+
+        elk_deployment_moved = {
             u"version": 1,
-            u"applications": {
-                ELASTICSEARCH_APPLICATION: {
-                    u"image": ELASTICSEARCH_IMAGE,
-                    u"ports": [{
-                        u"internal": ELASTICSEARCH_INTERNAL_PORT,
-                        u"external": ELASTICSEARCH_EXTERNAL_PORT,
-                    }],
-                    u"volume": {
-                        u"mountpoint": ELASTICSEARCH_VOLUME_MOUNTPOINT,
-                    },
-                },
-                LOGSTASH_APPLICATION: {
-                    u"image": LOGSTASH_IMAGE,
-                    u"ports": [{
-                        u"internal": LOGSTASH_INTERNAL_PORT,
-                        u"external": LOGSTASH_EXTERNAL_PORT,
-                    }],
-                    u"links": [{
-                        u"local_port": LOGSTASH_LOCAL_PORT,
-                        u"remote_port": LOGSTASH_REMOTE_PORT,
-                        u"alias": u"es",
-                    }],
-                },
-                KIBANA_APPLICATION: {
-                    u"image": KIBANA_IMAGE,
-                    u"ports": [{
-                        u"internal": KIBANA_INTERNAL_PORT,
-                        u"external": KIBANA_EXTERNAL_PORT,
-                    }],
-                },
+            u"nodes": {
+                self.node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
+                self.node_2: [ELASTICSEARCH_APPLICATION],
             },
         }
 
-        getting_nodes = get_nodes(num_nodes=2)
+        flocker_deploy(self, elk_deployment_moved, self.elk_application)
 
-        def deploy(node_ips):
-            node_1, node_2 = node_ips
-            elk_deployment = {
-                u"version": 1,
-                u"nodes": {
-                    node_1: [ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
-                        KIBANA_APPLICATION],
-                    node_2: [],
-                },
-            }
+        d = assert_expected_deployment(self, {
+            self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
+            self.node_2: set([ELASTICSEARCH_UNIT]),
+        })
 
-            flocker_deploy(self, elk_deployment, elk_application)
+        return d
 
-            def get_log_messages(es):
-                """
-                Takes elasticsearch instance, returns log messages.
-                """
-                # TODO force elasticsearch index? else wait in loop
-                # until what?
-                sleep(15)
-                search_results = es.search(doc_type=u'logs', _source_include=[u'message'])
-                return set([hit[u'_source'][u'message'] for hit in search_results[u'hits'][u'hits']])
-
-            # TODO Remove this sleep, it waits until telnet doesn't give a connection refused and ES can be connected to
-            sleep(20)
-            es = Elasticsearch(hosts=[{"host": node_1, "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            self.assertEqual(set([]), get_log_messages(es))
-
-            telnet = Telnet(host=node_1, port=LOGSTASH_EXTERNAL_PORT)
-            # TODO pip install python-logstash instead of telnet?
-            messages = set([
-                str({"firstname": "Joe", "lastname": "Bloggs"}),
-                str({"firstname": "Fred", "lastname": "Bloggs"})
-            ])
-            for message in messages:
-                telnet.write(message + "\n")
-            # TODO quit the telnet connection?
-
-            self.assertEqual(messages, get_log_messages(es))
-
-            elk_deployment_moved = {
-                u"version": 1,
-                u"nodes": {
-                    node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
-                    node_2: [ELASTICSEARCH_APPLICATION],
-                },
-            }
-
-            flocker_deploy(self, elk_deployment_moved, elk_application)
-            # d = assert_expected_deployment(self, {
-            #     node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
-            #     node_2: set([ELASTICSEARCH_UNIT]),
-            # })
-            #
-            # return d
-
-            # d = assert_expected_deployment(self, {
-            #     node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
-            #     node_2: set([]),
-            # })
-            #
-            # return d
-
-            # es_node_2 = Elasticsearch(hosts=[{"host": node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            # self.assertEqual(messages, get_log_messages(es_node_2))
-
-        getting_nodes.addCallback(deploy)
-        return getting_nodes
+        # es_node_2 = Elasticsearch(hosts=[{"host": self.node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
+        # self.assertEqual(messages, get_log_messages(es_node_2))
