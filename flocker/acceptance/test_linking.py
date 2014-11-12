@@ -162,7 +162,17 @@ class LinkingTests(TestCase):
             tn.write(str({"firstname": "Joe", "lastname": "Bloggs"}) + "\n")
             tn.write(str({"firstname": "Fred", "lastname": "Bloggs"}) + "\n")
             tn.write("exit\n")
-            something = es.search(doc_type=u'logs')
+            search_results = es.search(doc_type=u'logs',
+                                       _source_include=[u'message'])
+
+            expected = [
+                {u'message': u"{'lastname': 'Bloggs', 'firstname': 'Fred'}"},
+                {u'message': u"{'lastname': 'Bloggs', 'firstname': 'Joe'}"},
+            ]
+            self.assertEqual(
+                expected,
+                [hit['_source'] for hit in search_results['hits']['hits']]
+            )
             # {u'hits': {u'hits': [{u'_score': 1.0, u'_type': u'logs', u'_id': u'QRTWmnsRSZWudCkoer4Dgg', u'_source': {u'host': u'172.16.255.1:52597', u'message': u"{'lastname': 'Bloggs', 'firstname': 'Fred'}", u'@version': u'1', u'@timestamp': u'2014-11-12T10:57:04.263Z'}, u'_index': u'logstash-2014.11.12'}, {u'_score': 1.0, u'_type': u'logs', u'_id': u'scrWmNelQsmBHM9YHF5bHw', u'_source': {u'host': u'172.16.255.1:52597', u'message': u"{'lastname': 'Bloggs', 'firstname': 'Joe'}", u'@version': u'1', u'@timestamp': u'2014-11-12T10:56:58.900Z'}, u'_index': u'logstash-2014.11.12'}], u'total': 2, u'max_score': 1.0}, u'_shards': {u'successful': 5, u'failed': 0, u'total': 5}, u'took': 83, u'timed_out': False}
 
             # d = assert_expected_deployment(self, {
