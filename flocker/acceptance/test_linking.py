@@ -78,6 +78,7 @@ KIBANA_UNIT = Unit(
     volumes=frozenset([]),
 )
 
+
 class LinkingTests(TestCase):
     """
     Tests for linking containers.
@@ -105,8 +106,10 @@ class LinkingTests(TestCase):
             elk_deployment = {
                 u"version": 1,
                 u"nodes": {
-                    self.node_1: [ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
-                        KIBANA_APPLICATION],
+                    self.node_1: [
+                        ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
+                        KIBANA_APPLICATION,
+                    ],
                     self.node_2: [],
                 },
             }
@@ -173,19 +176,23 @@ class LinkingTests(TestCase):
             # TODO force elasticsearch index? else wait in loop
             # until what?
             sleep(15)
-            search_results = es.search(doc_type=u'logs', _source_include=[u'message'])
-            return set([hit[u'_source'][u'message'] for hit in search_results[u'hits'][u'hits']])
+            search_results = es.search(doc_type=u'logs',
+                _source_include=[u'message'])
+            return set([hit[u'_source'][u'message'] for hit in
+                search_results[u'hits'][u'hits']])
 
-        # TODO Remove this sleep, it waits until telnet doesn't give a connection refused and ES can be connected to
-        sleep(20)
-        es = Elasticsearch(hosts=[{"host": self.node_1, "port": ELASTICSEARCH_EXTERNAL_PORT}])
+        es = Elasticsearch(hosts=[{"host": self.node_1,
+            "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
         self.assertEqual(set([]), get_log_messages(es))
 
+        # TODO Remove this sleep, it waits until telnet doesn't give a
+        # connection refused
+        sleep(20)
         telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
         # TODO pip install python-logstash instead of telnet?
         messages = set([
             str({"firstname": "Joe", "lastname": "Bloggs"}),
-            str({"firstname": "Fred", "lastname": "Bloggs"})
+            str({"firstname": "Fred", "lastname": "Bloggs"}),
         ])
         for message in messages:
             telnet.write(message + "\n")
@@ -203,12 +210,14 @@ class LinkingTests(TestCase):
 
         flocker_deploy(self, elk_deployment_moved, self.elk_application)
 
-        d = assert_expected_deployment(self, {
+        es_node_2 = Elasticsearch(hosts=[{"host": self.node_2,
+            "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
+
+        asserting_es_moved = assert_expected_deployment(self, {
             self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
             self.node_2: set([ELASTICSEARCH_UNIT]),
         })
 
-        return d
-
-        # es_node_2 = Elasticsearch(hosts=[{"host": self.node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
-        # self.assertEqual(messages, get_log_messages(es_node_2))
+        asserting_es_moved.addCallback(
+            lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
+        return asserting_es_moved
