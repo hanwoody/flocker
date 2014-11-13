@@ -175,9 +175,8 @@ class LinkingTests(TestCase):
             """
             # TODO force elasticsearch index? else wait in loop
             # until what?
-            sleep(15)
-            search_results = es.search(doc_type=u'logs',
-                _source_include=[u'message'])
+            sleep(25)
+            search_results = es.search(doc_type=u'logs')
             return set([hit[u'_source'][u'message'] for hit in
                 search_results[u'hits'][u'hits']])
 
