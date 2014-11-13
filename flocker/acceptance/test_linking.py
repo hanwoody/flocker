@@ -185,7 +185,7 @@ class LinkingTests(TestCase):
         waiting_for_es = self._wait_for_elasticsearch_start(self.node_1)
 
         checking_no_messages = waiting_for_es.addCallback(lambda _:
-            self.assertEqual(set([]), self._get_log_messages(self.node_1))
+            self._assert_expected_log_messages(self.node_1, set([]))
         )
 
         return checking_no_messages
@@ -226,38 +226,17 @@ class LinkingTests(TestCase):
 
         sending_messages = waiting_for_logstash.addCallback(send_messages)
 
-        def get_hits_node_1():
-            # TODO merge this with the other one?
-            es = Elasticsearch(hosts=[{"host": self.node_1,
-                                "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            try:
-                return len(es.search()[u'hits'][u'hits']) >= len(messages)
-            except TransportError:
-                return False
-
         waiting_for_es = sending_messages.addCallback(
             lambda _: self._wait_for_elasticsearch_start(self.node_1))
-        d = waiting_for_es.addCallback(lambda _: loop_until(get_hits_node_1))
+        d = waiting_for_es.addCallback(lambda _: self._assert_expected_log_messages(self.node_1, messages))
 
         def rest_of_test(ignored):
-            self.assertEqual(messages, self._get_log_messages(self.node_1))
-
             flocker_deploy(self, self.elk_deployment_moved, self.elk_application)
 
             waiting_for_es = self._wait_for_elasticsearch_start(self.node_2)
 
-            def node_2_get_hits():
-                es_node_2 = Elasticsearch(
-                    hosts=[{"host": self.node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
-                try:
-                    return len(es_node_2.search()[u'hits'][u'hits']) >= len(messages)
-                except TransportError:
-                    return False
-            getting_hits = waiting_for_es.addCallback(
-                lambda _: loop_until(node_2_get_hits)
-            )
-            assert_messages_moved = getting_hits.addCallback(
-                lambda _: self.assertEqual(messages, self._get_log_messages(self.node_2)))
+            assert_messages_moved = waiting_for_es.addCallback(
+                lambda _: self._assert_expected_log_messages(self.node_2, messages))
             return assert_messages_moved
 
         d.addCallback(rest_of_test)
@@ -270,13 +249,32 @@ class LinkingTests(TestCase):
         waiting_for_ping = loop_until(lambda: es_to_wait_for.ping())
         return waiting_for_ping
 
-    def _get_log_messages(self, node):
+    def _assert_expected_log_messages(self, node, expected_messages):
         """
         Takes elasticsearch instance, returns log messages.
+
+        This is bad because it'll loop until timeout if the messages don't
+        come
         """
         # TODO get_elasticsearch helper function
         # TODO turn this into _assert_expected_log_messages
         es = Elasticsearch(hosts=[{"host": node,
-                        "port": ELASTICSEARCH_EXTERNAL_PORT}])
-        hits = es.search()[u'hits'][u'hits']
-        return set([hit[u'_source'][u'message'] for hit in hits])
+                            "port": ELASTICSEARCH_EXTERNAL_PORT}])
+
+        def get_hits():
+            # TODO merge this with the other one?
+            try:
+                return len(es.search()[u'hits'][u'hits']) >= len(expected_messages)
+            except TransportError:
+                return False
+
+        d = loop_until(get_hits)
+
+        def check_same(ignored):
+            hits = es.search()[u'hits'][u'hits']
+            messages = set([hit[u'_source'][u'message'] for hit in hits])
+            self.assertEqual(messages, expected_messages)
+
+        d.addCallback(check_same)
+
+        return d
