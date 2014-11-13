@@ -119,6 +119,14 @@ class LinkingTests(TestCase):
                 },
             }
 
+            self.elk_deployment_moved = {
+                u"version": 1,
+                u"nodes": {
+                    self.node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
+                    self.node_2: [ELASTICSEARCH_APPLICATION],
+                },
+            }
+
             self.elk_application = {
                 u"version": 1,
                 u"applications": {
@@ -184,6 +192,19 @@ class LinkingTests(TestCase):
         checking_no_messages = waiting_for_es.addCallback(check_es_no_messages)
         return checking_no_messages
 
+    def test_moving_just_elasticsearch(self):
+        """
+        # TODO It is possible to move just elasticsearch
+        """
+        flocker_deploy(self, self.elk_deployment_moved, self.elk_application)
+
+        asserting_es_moved = assert_expected_deployment(self, {
+            self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
+            self.node_2: set([ELASTICSEARCH_UNIT]),
+        })
+
+        return asserting_es_moved
+
     def test_linking(self):
         """
         Containers can be linked to using network ports.
@@ -229,27 +250,12 @@ class LinkingTests(TestCase):
                                 "port": ELASTICSEARCH_EXTERNAL_PORT}])
             self.assertEqual(messages, self._get_log_messages(es))
 
-            elk_deployment_moved = {
-                u"version": 1,
-                u"nodes": {
-                    self.node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
-                    self.node_2: [ELASTICSEARCH_APPLICATION],
-                },
-            }
-
-            flocker_deploy(self, elk_deployment_moved, self.elk_application)
+            flocker_deploy(self, self.elk_deployment_moved, self.elk_application)
 
             es_node_2 = Elasticsearch(hosts=[{"host": self.node_2,
                 "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
-            asserting_es_moved = assert_expected_deployment(self, {
-                self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
-                self.node_2: set([ELASTICSEARCH_UNIT]),
-            })
-
-            waiting_for_es = asserting_es_moved.addCallback(
-                lambda _: self._wait_for_elasticsearch_start(self.node_2)
-            )
+            waiting_for_es = self._wait_for_elasticsearch_start(self.node_2)
 
             def node_2_get_hits():
                 es_node_2 = Elasticsearch(
