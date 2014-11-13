@@ -183,13 +183,11 @@ class LinkingTests(TestCase):
         # TODO by default elasticsearch is empty
         """
         waiting_for_es = self._wait_for_elasticsearch_start(self.node_1)
-        def check_es_no_messages(ignored):
-            es = Elasticsearch(hosts=[{"host": self.node_1,
-                        "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
-            self.assertEqual(set([]), self._get_log_messages(es))
+        checking_no_messages = waiting_for_es.addCallback(lambda _:
+            self.assertEqual(set([]), self._get_log_messages(self.node_1))
+        )
 
-        checking_no_messages = waiting_for_es.addCallback(check_es_no_messages)
         return checking_no_messages
 
     def test_moving_just_elasticsearch(self):
@@ -245,15 +243,9 @@ class LinkingTests(TestCase):
         d = waiting_for_es.addCallback(lambda _: loop_until(get_hits_node_1))
 
         def rest_of_test(ignored):
-            # TODO better separation than "rest of test"
-            es = Elasticsearch(hosts=[{"host": self.node_1,
-                                "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            self.assertEqual(messages, self._get_log_messages(es))
+            self.assertEqual(messages, self._get_log_messages(self.node_1))
 
             flocker_deploy(self, self.elk_deployment_moved, self.elk_application)
-
-            es_node_2 = Elasticsearch(hosts=[{"host": self.node_2,
-                "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
             waiting_for_es = self._wait_for_elasticsearch_start(self.node_2)
 
@@ -268,7 +260,7 @@ class LinkingTests(TestCase):
                 lambda _: loop_until(node_2_get_hits)
             )
             assert_messages_moved = getting_hits.addCallback(
-                lambda _: self.assertEqual(messages, self._get_log_messages(es_node_2)))
+                lambda _: self.assertEqual(messages, self._get_log_messages(self.node_2)))
             return assert_messages_moved
 
         d.addCallback(rest_of_test)
@@ -281,9 +273,13 @@ class LinkingTests(TestCase):
         waiting_for_ping = loop_until(lambda: es_to_wait_for.ping())
         return waiting_for_ping
 
-    def _get_log_messages(self, es):
+    def _get_log_messages(self, node):
         """
         Takes elasticsearch instance, returns log messages.
         """
+        # TODO get_elasticsearch helper function
+        # TODO turn this into _assert_expected_log_messages
+        es = Elasticsearch(hosts=[{"host": node,
+                        "port": ELASTICSEARCH_EXTERNAL_PORT}])
         hits = es.search()[u'hits'][u'hits']
         return set([hit[u'_source'][u'message'] for hit in hits])
