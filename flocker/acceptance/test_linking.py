@@ -169,7 +169,7 @@ class LinkingTests(TestCase):
             from socket import error
             def get_telnet():
                 try:
-                    telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
+                    Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
                     return True
                 except error:
                     return False
@@ -209,7 +209,6 @@ class LinkingTests(TestCase):
 
         # Read until "Connected to 172.16.255.241"?
         telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
-        # TODO pip install python-logstash instead of telnet?
         messages = set([
             str({"firstname": "Joe", "lastname": "Bloggs"}),
             str({"firstname": "Fred", "lastname": "Bloggs"}),
@@ -250,5 +249,5 @@ class LinkingTests(TestCase):
         )
         return waiting_for_es
         # waiting_for_es.addCallback(
-#             lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
-#         return asserting_es_moved
+        #     lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
+        # return asserting_es_moved
