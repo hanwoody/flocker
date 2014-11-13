@@ -3,6 +3,7 @@
 """
 Tests for linking containers.
 """
+from socket import error
 from telnetlib import Telnet
 from time import sleep
 
@@ -154,31 +155,7 @@ class LinkingTests(TestCase):
             flocker_deploy(self, elk_deployment, self.elk_application)
 
         deploying_elk = getting_nodes.addCallback(deploy_elk)
-
-        # TODO move these waits to into the test
-        def wait_for_es(ignored):
-            # TODO use neater lambda like below (separate out?)
-            es = Elasticsearch(
-                hosts=[{"host": self.node_1,
-                        "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
-            waiting_for_ping = loop_until(lambda: es.ping())
-            return waiting_for_ping
-
-        waiting_for_es = deploying_elk.addCallback(wait_for_es)
-
-        def wait_for_logstash(ignored):
-            from socket import error
-            def get_telnet():
-                try:
-                    Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
-                    return True
-                except error:
-                    return False
-            waiting_for_telnet = loop_until(get_telnet)
-            return waiting_for_telnet
-
-        waiting_for_es.addCallback(wait_for_logstash)
-        return waiting_for_es
+        return deploying_elk
 
     def test_deploy(self):
         """
@@ -202,32 +179,64 @@ class LinkingTests(TestCase):
             hits = es.search()[u'hits'][u'hits']
             return set([hit[u'_source'][u'message'] for hit in hits])
 
-        es = Elasticsearch(hosts=[{"host": self.node_1,
-            "port": ELASTICSEARCH_EXTERNAL_PORT}])
+        def wait_for_elasticsearch_start(node):
+            es_to_wait_for = Elasticsearch(
+                hosts=[{"host": node,
+                        "port": ELASTICSEARCH_EXTERNAL_PORT}])
+            waiting_for_ping = loop_until(lambda: es_to_wait_for.ping())
+            return waiting_for_ping
 
-        self.assertEqual(set([]), get_log_messages(es))
+        waiting_for_es = wait_for_elasticsearch_start(self.node_1)
 
-        # Read until "Connected to 172.16.255.241"?
-        telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
+        def wait_for_logstash(ignored):
+
+            def get_telnet():
+                try:
+                    Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
+                    return True
+                except error:
+                    return False
+            waiting_for_telnet = loop_until(get_telnet)
+            return waiting_for_telnet
+
+        waiting_for_logstash = waiting_for_es.addCallback(wait_for_logstash)
+
+        def check_es_no_messages(ignored):
+            es = Elasticsearch(hosts=[{"host": self.node_1,
+                        "port": ELASTICSEARCH_EXTERNAL_PORT}])
+
+            self.assertEqual(set([]), get_log_messages(es))
+
+        checking_no_messages = waiting_for_logstash.addCallback(check_es_no_messages)
+
         messages = set([
             str({"firstname": "Joe", "lastname": "Bloggs"}),
             str({"firstname": "Fred", "lastname": "Bloggs"}),
         ])
-        for message in messages:
-            telnet.write(message + "\n")
 
-        def get_hits():
+        def send_messages(ignored):
+            telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
+
+            for message in messages:
+                telnet.write(message + "\n")
+
+        sending_messages = checking_no_messages.addCallback(send_messages)
+
+        def get_hits_node_1():
             # TODO merge this with the other one?
+            es = Elasticsearch(hosts=[{"host": self.node_1,
+                                "port": ELASTICSEARCH_EXTERNAL_PORT}])
             try:
                 return len(es.search()[u'hits'][u'hits']) >= len(messages)
             except TransportError:
                 return False
 
-        # TODO better name than "d"
-        d = loop_until(get_hits)
+        d = sending_messages.addCallback(lambda _: loop_until(get_hits_node_1))
 
         def rest_of_test(ignored):
             # TODO better separation than "rest of test"
+            es = Elasticsearch(hosts=[{"host": self.node_1,
+                                "port": ELASTICSEARCH_EXTERNAL_PORT}])
             self.assertEqual(messages, get_log_messages(es))
 
             elk_deployment_moved = {
@@ -248,19 +257,20 @@ class LinkingTests(TestCase):
                 self.node_2: set([ELASTICSEARCH_UNIT]),
             })
 
-            es_node_2 = Elasticsearch(
-                hosts=[{"host": self.node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
-
             waiting_for_es = asserting_es_moved.addCallback(
-                lambda _: loop_until(lambda: es_node_2.ping())
+                lambda _: wait_for_elasticsearch_start(self.node_2)
             )
 
-            def get_hits():
+            def node_2_get_hits():
+                es_node_2 = Elasticsearch(
+                    hosts=[{"host": self.node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
                 try:
-                    return len(es.search()[u'hits'][u'hits']) >= len(messages)
+                    return len(es_node_2.search()[u'hits'][u'hits']) >= len(messages)
                 except TransportError:
                     return False
-            getting_hits = loop_until(get_hits)
+            getting_hits = waiting_for_es.addCallback(
+                lambda _: loop_until(node_2_get_hits)
+            )
             assert_messages_moved = getting_hits.addCallback(
                 lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
             return assert_messages_moved
