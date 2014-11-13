@@ -80,6 +80,11 @@ KIBANA_UNIT = Unit(
     volumes=frozenset([]),
 )
 
+MESSAGES = set([
+    str({"firstname": "Joe", "lastname": "Bloggs"}),
+    str({"firstname": "Fred", "lastname": "Bloggs"}),
+])
+
 
 class LinkingTests(TestCase):
     """
@@ -182,7 +187,8 @@ class LinkingTests(TestCase):
         """
         # TODO by default elasticsearch is empty
         """
-        waiting_for_es = self._wait_for_elasticsearch_start(self.node_1)
+        # TODO put waiting_for_es into _assertX
+        waiting_for_es = self._wait_for_elasticsearch_start(node=self.node_1)
 
         checking_no_messages = waiting_for_es.addCallback(
             self._assert_expected_log_messages,
@@ -205,28 +211,29 @@ class LinkingTests(TestCase):
 
         return asserting_es_moved
 
+    def test_logstash_messages_in_es(self):
+        """
+        # TODO messages from logstash show up in es
+        """
+        sending_messages = self._send_messages_to_logstash(self.node_1)
+        waiting_for_es = sending_messages.addCallback(
+            self._wait_for_elasticsearch_start,
+            node=self.node_1,
+        )
+
+        checking_messages = waiting_for_es.addCallback(
+            self._assert_expected_log_messages,
+            node=self.node_1,
+            expected_messages=MESSAGES,
+        )
+
+        return checking_messages
+
     def test_linking(self):
         """
         Containers can be linked to using network ports.
         """
-        def get_telnet_connection_to_logstash():
-            try:
-                return Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
-            except error:
-                return False
-
-        waiting_for_logstash = loop_until(get_telnet_connection_to_logstash)
-
-        messages = set([
-            str({"firstname": "Joe", "lastname": "Bloggs"}),
-            str({"firstname": "Fred", "lastname": "Bloggs"}),
-        ])
-
-        def send_messages(telnet):
-            for message in messages:
-                telnet.write(message + "\n")
-
-        sending_messages = waiting_for_logstash.addCallback(send_messages)
+        sending_messages = self._send_messages_to_logstash(self.node_1)
 
         waiting_for_es = sending_messages.addCallback(
             self._wait_for_elasticsearch_start,
@@ -236,26 +243,26 @@ class LinkingTests(TestCase):
         checking_messages = waiting_for_es.addCallback(
             self._assert_expected_log_messages,
             node=self.node_1,
-            expected_messages=messages,
+            expected_messages=MESSAGES,
         )
 
         def test_messages_move(ignored):
             flocker_deploy(self, self.elk_deployment_moved,
                 self.elk_application)
 
-            waiting_for_es = self._wait_for_elasticsearch_start(self.node_2)
+            waiting_for_es = self._wait_for_elasticsearch_start(node=self.node_2)
 
             assert_messages_moved = waiting_for_es.addCallback(
                 self._assert_expected_log_messages,
                 node=self.node_2,
-                expected_messages=messages)
+                expected_messages=MESSAGES)
 
             return assert_messages_moved
 
         checking_messages.addCallback(test_messages_move)
         return checking_messages
 
-    def _wait_for_elasticsearch_start(self, node):
+    def _wait_for_elasticsearch_start(self, ignored=None, node=None):
         es_to_wait_for = Elasticsearch(
             hosts=[{"host": node,
                     "port": ELASTICSEARCH_EXTERNAL_PORT}])
@@ -288,3 +295,22 @@ class LinkingTests(TestCase):
         d.addCallback(check_same)
 
         return d
+
+    def _send_messages_to_logstash(self, node):
+        """
+        Logstash sometimes takes ages to start up
+        """
+        def get_telnet_connection_to_logstash():
+            try:
+                return Telnet(host=node, port=LOGSTASH_EXTERNAL_PORT)
+            except error:
+                return False
+
+        waiting_for_logstash = loop_until(get_telnet_connection_to_logstash)
+
+        def send_messages(telnet):
+            for message in MESSAGES:
+                telnet.write(message + "\n")
+
+        sending_messages = waiting_for_logstash.addCallback(send_messages)
+        return sending_messages
