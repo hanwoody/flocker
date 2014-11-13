@@ -229,7 +229,10 @@ class LinkingTests(TestCase):
         sending_messages = waiting_for_logstash.addCallback(send_messages)
 
         waiting_for_es = sending_messages.addCallback(
-            lambda _: self._wait_for_elasticsearch_start(self.node_1))
+            self._wait_for_elasticsearch_start,
+            node=self.node_1,
+        )
+
         checking_messages = waiting_for_es.addCallback(
             self._assert_expected_log_messages,
             node=self.node_1,
