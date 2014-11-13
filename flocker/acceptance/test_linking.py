@@ -225,7 +225,7 @@ class LinkingTests(TestCase):
                 return False
 
         # TODO better name than "d"
-        d = loop_until(get_hits, 5)
+        d = loop_until(get_hits, 1)
 
         def rest_of_test(ignored):
             # TODO better separation than "rest of test"
@@ -255,14 +255,13 @@ class LinkingTests(TestCase):
             waiting_for_es = asserting_es_moved.addCallback(
                 lambda _: loop_until(lambda: es_node_2.ping())
             )
-            # return waiting_for_es
 
             def get_hits():
                 try:
                     return es_node_2.search()[u'hits'][u'hits']
                 except:
                     return False
-            getting_hits = loop_until(get_hits, 5)
+            getting_hits = loop_until(get_hits, 1)
             assert_messages_moved = getting_hits.addCallback(
                 lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
             return assert_messages_moved
