@@ -195,7 +195,7 @@ class LinkingTests(TestCase):
 
         # TODO Remove this sleep, it waits until telnet doesn't give a
         # connection refused
-        sleep(10)
+        sleep(20)
         # Read until "Connected to 172.16.255.241"?
         telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
         # TODO pip install python-logstash instead of telnet?
@@ -235,7 +235,7 @@ class LinkingTests(TestCase):
                     "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
 
         waiting_for_es = asserting_es_moved.addCallback(
-            lambda _: loop_until(lambda: es.ping())
+            lambda _: loop_until(lambda: es_node_2.ping())
         )
 
         waiting_for_es.addCallback(
