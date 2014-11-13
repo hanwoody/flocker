@@ -184,8 +184,10 @@ class LinkingTests(TestCase):
         """
         waiting_for_es = self._wait_for_elasticsearch_start(self.node_1)
 
-        checking_no_messages = waiting_for_es.addCallback(lambda _:
-            self._assert_expected_log_messages(self.node_1, set([]))
+        checking_no_messages = waiting_for_es.addCallback(
+            self._assert_expected_log_messages,
+            node=self.node_1,
+            expected_messages=set([]),
         )
 
         return checking_no_messages
@@ -228,8 +230,11 @@ class LinkingTests(TestCase):
 
         waiting_for_es = sending_messages.addCallback(
             lambda _: self._wait_for_elasticsearch_start(self.node_1))
-        checking_messages = waiting_for_es.addCallback(lambda _:
-            self._assert_expected_log_messages(self.node_1, messages))
+        checking_messages = waiting_for_es.addCallback(
+            self._assert_expected_log_messages,
+            node=self.node_1,
+            expected_messages=messages,
+        )
 
         def test_messages_move(ignored):
             flocker_deploy(self, self.elk_deployment_moved,
@@ -237,8 +242,11 @@ class LinkingTests(TestCase):
 
             waiting_for_es = self._wait_for_elasticsearch_start(self.node_2)
 
-            assert_messages_moved = waiting_for_es.addCallback(lambda _:
-                self._assert_expected_log_messages(self.node_2, messages))
+            assert_messages_moved = waiting_for_es.addCallback(
+                self._assert_expected_log_messages,
+                node=self.node_2,
+                expected_messages=messages)
+
             return assert_messages_moved
 
         checking_messages.addCallback(test_messages_move)
@@ -251,19 +259,17 @@ class LinkingTests(TestCase):
         waiting_for_ping = loop_until(lambda: es_to_wait_for.ping())
         return waiting_for_ping
 
-    def _assert_expected_log_messages(self, node, expected_messages):
+    def _assert_expected_log_messages(self, ignored, node, expected_messages):
         """
         Takes elasticsearch instance, returns log messages.
 
         This is bad because it'll loop until timeout if the messages don't
         come
         """
-        # TODO get_elasticsearch helper function
         es = Elasticsearch(hosts=[{"host": node,
                             "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
         def get_hits():
-            # TODO merge this with the other one?
             try:
                 return len(es.search()[u'hits'][u'hits']) >= len(expected_messages)
             except TransportError:
