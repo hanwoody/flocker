@@ -151,8 +151,18 @@ class LinkingTests(TestCase):
 
             flocker_deploy(self, elk_deployment, self.elk_application)
 
-        getting_nodes.addCallback(deploy_elk)
-        return getting_nodes
+        deploying_elk = getting_nodes.addCallback(deploy_elk)
+
+        def wait_for_es(ignored):
+            es = Elasticsearch(
+                hosts=[{"host": self.node_1,
+                        "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
+            from flocker.testtools import loop_until
+            waiting_for_ping = loop_until(lambda: es.ping())
+            return waiting_for_ping
+
+        waiting_for_es = deploying_elk.addCallback(wait_for_es)
+        return waiting_for_es
 
     def test_deploy(self):
         """
@@ -175,13 +185,14 @@ class LinkingTests(TestCase):
             """
             # TODO force elasticsearch index? else wait in loop
             # until what?
-            sleep(25)
+            sleep(10)
             search_results = es.search(doc_type=u'logs')
             return set([hit[u'_source'][u'message'] for hit in
                 search_results[u'hits'][u'hits']])
 
         es = Elasticsearch(hosts=[{"host": self.node_1,
             "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
+
         self.assertEqual(set([]), get_log_messages(es))
 
         # TODO Remove this sleep, it waits until telnet doesn't give a
