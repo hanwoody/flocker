@@ -203,7 +203,7 @@ class LinkingTests(TestCase):
                 search_results[u'hits'][u'hits']])
 
         es = Elasticsearch(hosts=[{"host": self.node_1,
-            "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
+            "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
         self.assertEqual(set([]), get_log_messages(es))
 
@@ -233,7 +233,7 @@ class LinkingTests(TestCase):
         flocker_deploy(self, elk_deployment_moved, self.elk_application)
 
         es_node_2 = Elasticsearch(hosts=[{"host": self.node_2,
-            "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
+            "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
         asserting_es_moved = assert_expected_deployment(self, {
             self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
