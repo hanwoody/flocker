@@ -209,8 +209,7 @@ class LinkingTests(TestCase):
         """
         def get_telnet_connection_to_logstash():
             try:
-                Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
-                return True
+                return Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
             except error:
                 return False
 
@@ -221,9 +220,7 @@ class LinkingTests(TestCase):
             str({"firstname": "Fred", "lastname": "Bloggs"}),
         ])
 
-        def send_messages(ignored):
-            telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
-
+        def send_messages(telnet):
             for message in messages:
                 telnet.write(message + "\n")
 
