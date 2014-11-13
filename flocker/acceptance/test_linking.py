@@ -5,7 +5,6 @@ Tests for linking containers.
 """
 from socket import error
 from telnetlib import Telnet
-from time import sleep
 
 # TODO add this to setup.py, do the whole @require Elasticsearch
 from elasticsearch import Elasticsearch
@@ -89,6 +88,7 @@ class LinkingTests(TestCase):
     Similar to:
     http://doc-dev.clusterhq.com/gettingstarted/examples/linking.html
 
+    # TODO remove the loopuntil changes
     # TODO Link to this file from linking.rst
 
     # TODO proper docstring
@@ -228,19 +228,21 @@ class LinkingTests(TestCase):
 
         waiting_for_es = sending_messages.addCallback(
             lambda _: self._wait_for_elasticsearch_start(self.node_1))
-        d = waiting_for_es.addCallback(lambda _: self._assert_expected_log_messages(self.node_1, messages))
+        checking_messages = waiting_for_es.addCallback(lambda _:
+            self._assert_expected_log_messages(self.node_1, messages))
 
-        def rest_of_test(ignored):
-            flocker_deploy(self, self.elk_deployment_moved, self.elk_application)
+        def test_messages_move(ignored):
+            flocker_deploy(self, self.elk_deployment_moved,
+                self.elk_application)
 
             waiting_for_es = self._wait_for_elasticsearch_start(self.node_2)
 
-            assert_messages_moved = waiting_for_es.addCallback(
-                lambda _: self._assert_expected_log_messages(self.node_2, messages))
+            assert_messages_moved = waiting_for_es.addCallback(lambda _:
+                self._assert_expected_log_messages(self.node_2, messages))
             return assert_messages_moved
 
-        d.addCallback(rest_of_test)
-        return d
+        checking_messages.addCallback(test_messages_move)
+        return checking_messages
 
     def _wait_for_elasticsearch_start(self, node):
         es_to_wait_for = Elasticsearch(
@@ -257,7 +259,6 @@ class LinkingTests(TestCase):
         come
         """
         # TODO get_elasticsearch helper function
-        # TODO turn this into _assert_expected_log_messages
         es = Elasticsearch(hosts=[{"host": node,
                             "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
