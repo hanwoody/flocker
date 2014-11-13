@@ -215,39 +215,55 @@ class LinkingTests(TestCase):
         ])
         for message in messages:
             telnet.write(message + "\n")
-        # TODO quit the telnet connection?
-        # TODO force elasticsearch index? else wait in loop
-        # until what?
-        sleep(20)
 
-        self.assertEqual(messages, get_log_messages(es))
+        def get_hits():
+            try:
+                return es.search()[u'hits'][u'hits']
+            except:
+                return False
 
-        elk_deployment_moved = {
-            u"version": 1,
-            u"nodes": {
-                self.node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
-                self.node_2: [ELASTICSEARCH_APPLICATION],
-            },
-        }
+        d = loop_until(get_hits, 5)
 
-        flocker_deploy(self, elk_deployment_moved, self.elk_application)
+        def rest_of_test(ignored):
+            self.assertEqual(messages, get_log_messages(es))
 
-        es_node_2 = Elasticsearch(hosts=[{"host": self.node_2,
-            "port": ELASTICSEARCH_EXTERNAL_PORT}])
+            elk_deployment_moved = {
+                u"version": 1,
+                u"nodes": {
+                    self.node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
+                    self.node_2: [ELASTICSEARCH_APPLICATION],
+                },
+            }
 
-        asserting_es_moved = assert_expected_deployment(self, {
-            self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
-            self.node_2: set([ELASTICSEARCH_UNIT]),
-        })
+            flocker_deploy(self, elk_deployment_moved, self.elk_application)
 
-        es_node_2 = Elasticsearch(
-            hosts=[{"host": self.node_2,
-                    "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
+            es_node_2 = Elasticsearch(hosts=[{"host": self.node_2,
+                "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
-        waiting_for_es = asserting_es_moved.addCallback(
-            lambda _: loop_until(lambda: es_node_2.ping())
-        )
-        return waiting_for_es
-        # waiting_for_es.addCallback(
-        #     lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
-        # return asserting_es_moved
+            asserting_es_moved = assert_expected_deployment(self, {
+                self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
+                self.node_2: set([ELASTICSEARCH_UNIT]),
+            })
+
+            es_node_2 = Elasticsearch(
+                hosts=[{"host": self.node_2, "port": ELASTICSEARCH_EXTERNAL_PORT}])
+
+            waiting_for_es = asserting_es_moved.addCallback(
+                lambda _: loop_until(lambda: es_node_2.ping())
+            )
+            # return waiting_for_es
+
+            def get_hits():
+                try:
+                    return es_node_2.search()[u'hits'][u'hits']
+                except:
+                    return False
+            getting_hits = loop_until(get_hits, 5)
+            assert_messages_moved = getting_hits.addCallback(
+                lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
+            return assert_messages_moved
+
+        d.addCallback(rest_of_test)
+        return d
+
+        
