@@ -8,6 +8,7 @@ from time import sleep
 
 # TODO add this to setup.py, do the whole @require Elasticsearch
 from elasticsearch import Elasticsearch
+from elasticsearch.exceptions import TransportError
 
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
@@ -198,9 +199,8 @@ class LinkingTests(TestCase):
             """
             Takes elasticsearch instance, returns log messages.
             """
-            search_results = es.search()
-            return set([hit[u'_source'][u'message'] for hit in
-                search_results[u'hits'][u'hits']])
+            hits = es.search()[u'hits'][u'hits']
+            return set([hit[u'_source'][u'message'] for hit in hits])
 
         es = Elasticsearch(hosts=[{"host": self.node_1,
             "port": ELASTICSEARCH_EXTERNAL_PORT}])
@@ -218,14 +218,13 @@ class LinkingTests(TestCase):
 
         def get_hits():
             # TODO merge this with the other one?
-            # TODO check for elasticsearch.exceptions.TransportError
             try:
-                return es.search()[u'hits'][u'hits']
-            except:
+                return len(es.search()[u'hits'][u'hits']) >= len(messages)
+            except TransportError:
                 return False
 
         # TODO better name than "d"
-        d = loop_until(get_hits, 1)
+        d = loop_until(get_hits)
 
         def rest_of_test(ignored):
             # TODO better separation than "rest of test"
@@ -258,10 +257,10 @@ class LinkingTests(TestCase):
 
             def get_hits():
                 try:
-                    return es_node_2.search()[u'hits'][u'hits']
-                except:
+                    return len(es.search()[u'hits'][u'hits']) >= len(messages)
+                except TransportError:
                     return False
-            getting_hits = loop_until(get_hits, 1)
+            getting_hits = loop_until(get_hits)
             assert_messages_moved = getting_hits.addCallback(
                 lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
             return assert_messages_moved
