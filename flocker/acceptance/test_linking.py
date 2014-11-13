@@ -95,6 +95,8 @@ class LinkingTests(TestCase):
     # This has the flaw of not actually testing Kibana. It does connect the
     # linking feature - between elasticsearch and logstash, and the kibana
     # thing needs to be set up right (this test verifies that it is running)
+    # We could e.g. use selenium and check that there is no error saying that
+    # kibana is not connected
     """
     @require_flocker_cli
     def setUp(self):
@@ -168,46 +170,32 @@ class LinkingTests(TestCase):
 
         return d
 
-    def test_linking(self):
+    def test_elasticsearch_empty(self):
         """
-        Containers can be linked to using network ports.
+        # TODO by default elasticsearch is empty
         """
-        def get_log_messages(es):
-            """
-            Takes elasticsearch instance, returns log messages.
-            """
-            hits = es.search()[u'hits'][u'hits']
-            return set([hit[u'_source'][u'message'] for hit in hits])
-
-        def wait_for_elasticsearch_start(node):
-            es_to_wait_for = Elasticsearch(
-                hosts=[{"host": node,
-                        "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            waiting_for_ping = loop_until(lambda: es_to_wait_for.ping())
-            return waiting_for_ping
-
-        waiting_for_es = wait_for_elasticsearch_start(self.node_1)
-
-        def wait_for_logstash(ignored):
-
-            def get_telnet():
-                try:
-                    Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
-                    return True
-                except error:
-                    return False
-            waiting_for_telnet = loop_until(get_telnet)
-            return waiting_for_telnet
-
-        waiting_for_logstash = waiting_for_es.addCallback(wait_for_logstash)
-
+        waiting_for_es = self._wait_for_elasticsearch_start(self.node_1)
         def check_es_no_messages(ignored):
             es = Elasticsearch(hosts=[{"host": self.node_1,
                         "port": ELASTICSEARCH_EXTERNAL_PORT}])
 
-            self.assertEqual(set([]), get_log_messages(es))
+            self.assertEqual(set([]), self._get_log_messages(es))
 
-        checking_no_messages = waiting_for_logstash.addCallback(check_es_no_messages)
+        checking_no_messages = waiting_for_es.addCallback(check_es_no_messages)
+        return checking_no_messages
+
+    def test_linking(self):
+        """
+        Containers can be linked to using network ports.
+        """
+        def get_telnet_connection_to_logstash():
+            try:
+                Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
+                return True
+            except error:
+                return False
+
+        waiting_for_logstash = loop_until(get_telnet_connection_to_logstash)
 
         messages = set([
             str({"firstname": "Joe", "lastname": "Bloggs"}),
@@ -220,7 +208,7 @@ class LinkingTests(TestCase):
             for message in messages:
                 telnet.write(message + "\n")
 
-        sending_messages = checking_no_messages.addCallback(send_messages)
+        sending_messages = waiting_for_logstash.addCallback(send_messages)
 
         def get_hits_node_1():
             # TODO merge this with the other one?
@@ -231,13 +219,15 @@ class LinkingTests(TestCase):
             except TransportError:
                 return False
 
-        d = sending_messages.addCallback(lambda _: loop_until(get_hits_node_1))
+        waiting_for_es = sending_messages.addCallback(
+            lambda _: self._wait_for_elasticsearch_start(self.node_1))
+        d = waiting_for_es.addCallback(lambda _: loop_until(get_hits_node_1))
 
         def rest_of_test(ignored):
             # TODO better separation than "rest of test"
             es = Elasticsearch(hosts=[{"host": self.node_1,
                                 "port": ELASTICSEARCH_EXTERNAL_PORT}])
-            self.assertEqual(messages, get_log_messages(es))
+            self.assertEqual(messages, self._get_log_messages(es))
 
             elk_deployment_moved = {
                 u"version": 1,
@@ -258,7 +248,7 @@ class LinkingTests(TestCase):
             })
 
             waiting_for_es = asserting_es_moved.addCallback(
-                lambda _: wait_for_elasticsearch_start(self.node_2)
+                lambda _: self._wait_for_elasticsearch_start(self.node_2)
             )
 
             def node_2_get_hits():
@@ -272,10 +262,22 @@ class LinkingTests(TestCase):
                 lambda _: loop_until(node_2_get_hits)
             )
             assert_messages_moved = getting_hits.addCallback(
-                lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
+                lambda _: self.assertEqual(messages, self._get_log_messages(es_node_2)))
             return assert_messages_moved
 
         d.addCallback(rest_of_test)
         return d
 
-        
+    def _wait_for_elasticsearch_start(self, node):
+        es_to_wait_for = Elasticsearch(
+            hosts=[{"host": node,
+                    "port": ELASTICSEARCH_EXTERNAL_PORT}])
+        waiting_for_ping = loop_until(lambda: es_to_wait_for.ping())
+        return waiting_for_ping
+
+    def _get_log_messages(self, es):
+        """
+        Takes elasticsearch instance, returns log messages.
+        """
+        hits = es.search()[u'hits'][u'hits']
+        return set([hit[u'_source'][u'message'] for hit in hits])
