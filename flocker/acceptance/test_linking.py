@@ -13,6 +13,7 @@ from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
 from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
+from flocker.testtools import loop_until
 
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
@@ -154,10 +155,10 @@ class LinkingTests(TestCase):
         deploying_elk = getting_nodes.addCallback(deploy_elk)
 
         def wait_for_es(ignored):
+            # TODO use neater lambda like below (separate out?)
             es = Elasticsearch(
                 hosts=[{"host": self.node_1,
                         "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
-            from flocker.testtools import loop_until
             waiting_for_ping = loop_until(lambda: es.ping())
             return waiting_for_ping
 
@@ -183,10 +184,7 @@ class LinkingTests(TestCase):
             """
             Takes elasticsearch instance, returns log messages.
             """
-            # TODO force elasticsearch index? else wait in loop
-            # until what?
-            sleep(10)
-            search_results = es.search(doc_type=u'logs')
+            search_results = es.search()
             return set([hit[u'_source'][u'message'] for hit in
                 search_results[u'hits'][u'hits']])
 
@@ -197,7 +195,7 @@ class LinkingTests(TestCase):
 
         # TODO Remove this sleep, it waits until telnet doesn't give a
         # connection refused
-        sleep(20)
+        sleep(10)
         # Read until "Connected to 172.16.255.241"?
         telnet = Telnet(host=self.node_1, port=LOGSTASH_EXTERNAL_PORT)
         # TODO pip install python-logstash instead of telnet?
@@ -208,6 +206,9 @@ class LinkingTests(TestCase):
         for message in messages:
             telnet.write(message + "\n")
         # TODO quit the telnet connection?
+        # TODO force elasticsearch index? else wait in loop
+        # until what?
+        sleep(20)
 
         self.assertEqual(messages, get_log_messages(es))
 
@@ -229,6 +230,14 @@ class LinkingTests(TestCase):
             self.node_2: set([ELASTICSEARCH_UNIT]),
         })
 
-        asserting_es_moved.addCallback(
+        es_node_2 = Elasticsearch(
+            hosts=[{"host": self.node_2,
+                    "port": ELASTICSEARCH_EXTERNAL_PORT}], max_retries=20)
+
+        waiting_for_es = asserting_es_moved.addCallback(
+            lambda _: loop_until(lambda: es.ping())
+        )
+
+        waiting_for_es.addCallback(
             lambda _: self.assertEqual(messages, get_log_messages(es_node_2)))
         return asserting_es_moved
