@@ -217,14 +217,18 @@ class LinkingTests(TestCase):
             telnet.write(message + "\n")
 
         def get_hits():
+            # TODO merge this with the other one?
+            # TODO check for elasticsearch.exceptions.TransportError
             try:
                 return es.search()[u'hits'][u'hits']
             except:
                 return False
 
+        # TODO better name than "d"
         d = loop_until(get_hits, 5)
 
         def rest_of_test(ignored):
+            # TODO better separation than "rest of test"
             self.assertEqual(messages, get_log_messages(es))
 
             elk_deployment_moved = {
