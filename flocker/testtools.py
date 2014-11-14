@@ -128,7 +128,7 @@ def assertNoFDsLeaked(test_case):
         test_case.assertEqual(process_fds(), fds)
 
 
-def loop_until(predicate, time=0.1):
+def loop_until(predicate):
     """Call predicate every 0.1 seconds, until it returns something ``Truthy``.
 
     :param predicate: Callable returning termination condition.
@@ -141,7 +141,7 @@ def loop_until(predicate, time=0.1):
 
     def loop(result):
         if not result:
-            d = deferLater(reactor, time, predicate)
+            d = deferLater(reactor, 0.1, predicate)
             d.addCallback(loop)
             return d
         return result

@@ -6,7 +6,9 @@ Tests for linking containers.
 from socket import error
 from telnetlib import Telnet
 
-# TODO add this to setup.py, do the whole @require Elasticsearch
+# TODO add this to setup.py,
+# TODO Create and use @require_elasticsearch, similar to
+# @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed") in test_postgres.py
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
 
@@ -95,13 +97,12 @@ class LinkingTests(TestCase):
     Similar to:
     http://doc-dev.clusterhq.com/gettingstarted/examples/linking.html
 
-    # TODO remove the loopuntil changes
-
-    # TODO This has the flaw of not actually testing Kibana. It does connect
-    # the linking feature - between elasticsearch and logstash, and the kibana
-    # thing needs to be set up right (this test verifies that it is running)
-    # We could e.g. use selenium and check that there is no error saying that
-    # kibana is not connected
+    # TODO This has the flaw of not actually testing that the data shows up in
+    # Kibana. It does test the linking feature - between Elasticsearch and
+    # logstash, and Kibana needs to be set up (these test verifies that it
+    # is running). We could e.g. use selenium and check that there is no error
+    # saying that Kibana cannot find Elasticsearch, and trust that if it can
+    # find the data store then it will display it as in the tutorial.
 
     # TODO this script avoids so many race conditions. Try manually running the
     # tutorial as fast as possible and see if there are places where that
@@ -284,8 +285,7 @@ class LinkingTests(TestCase):
 
     def _assert_expected_log_messages(self, ignored, node, expected_messages):
         """
-        Check that expected messages can eventually be found by
-        Elasticsearch.
+        Check that expected messages can eventually be found by Elasticsearch.
 
         After sending two messages to logstash, checking elasticsearch will
         at first show that there are zero messages, then later one, then later

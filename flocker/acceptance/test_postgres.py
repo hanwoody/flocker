@@ -120,7 +120,7 @@ class PostgresTests(TestCase):
         def connect_to_postgres():
             try:
                 return connect(host=host, user=user, port=port,
-                    database=database)
+                               database=database)
             except OperationalError:
                 return False
 
@@ -155,16 +155,18 @@ class PostgresTests(TestCase):
         connecting_to_application.addCallback(create_database)
 
         getting_database = connecting_to_application.addCallback(
-            lambda _: self._get_postgres_connection(host=self.node_1,
-                user=user, port=POSTGRES_EXTERNAL_PORT, database=database))
+            lambda _: self._get_postgres_connection(
+                host=self.node_1, user=user, port=POSTGRES_EXTERNAL_PORT,
+                database=database))
 
         def insert_data(connection_to_db):
             with connection_to_db as db_connection_node_1:
                 with db_connection_node_1.cursor() as db_node_1_cursor:
-                    db_node_1_cursor.execute("CREATE TABLE " + table + " (" +
-                        column + " int);")
-                    db_node_1_cursor.execute("INSERT INTO " + table + " (" +
-                        column + ") VALUES (%(data)s);", {'data': data})
+                    db_node_1_cursor.execute(
+                        "CREATE TABLE " + table + " (" + column + " int);")
+                    db_node_1_cursor.execute(
+                        "INSERT INTO " + table + " (" + column +
+                        ") VALUES (%(data)s);", {'data': data})
                     db_node_1_cursor.execute("SELECT * FROM " + table + ";")
                     db_connection_node_1.commit()
                     self.assertEqual(db_node_1_cursor.fetchone()[0], data)
@@ -193,8 +195,9 @@ class PostgresTests(TestCase):
         moving_postgres = inserting_data.addCallback(move_postgres)
 
         getting_database_node_2 = moving_postgres.addCallback(
-            lambda _: self._get_postgres_connection(host=self.node_2,
-                user=user, port=POSTGRES_EXTERNAL_PORT, database=database))
+            lambda _: self._get_postgres_connection(
+                host=self.node_2, user=user, port=POSTGRES_EXTERNAL_PORT,
+                database=database))
 
         def verify_data_moves(connection_to_db):
             with connection_to_db as db_connection_node_2:
