@@ -9,6 +9,7 @@ from telnetlib import Telnet
 # TODO add this to setup.py,
 # TODO Create and use @require_elasticsearch, similar to
 # @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed") in test_postgres.py
+# TODO add this to the licensing google doc
 from elasticsearch import Elasticsearch
 from elasticsearch.exceptions import TransportError
 
