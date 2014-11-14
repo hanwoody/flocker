@@ -187,7 +187,6 @@ class LinkingTests(TestCase):
         """
         # TODO by default elasticsearch is empty
         """
-        # TODO put waiting_for_es into _assertX
         waiting_for_es = self._wait_for_elasticsearch_start(node=self.node_1)
 
         checking_no_messages = waiting_for_es.addCallback(
@@ -216,12 +215,8 @@ class LinkingTests(TestCase):
         # TODO messages from logstash show up in es
         """
         sending_messages = self._send_messages_to_logstash(self.node_1)
-        waiting_for_es = sending_messages.addCallback(
-            self._wait_for_elasticsearch_start,
-            node=self.node_1,
-        )
 
-        checking_messages = waiting_for_es.addCallback(
+        checking_messages = sending_messages.addCallback(
             self._assert_expected_log_messages,
             node=self.node_1,
             expected_messages=MESSAGES,
@@ -235,38 +230,38 @@ class LinkingTests(TestCase):
         """
         sending_messages = self._send_messages_to_logstash(self.node_1)
 
-        waiting_for_es = sending_messages.addCallback(
-            self._wait_for_elasticsearch_start,
-            node=self.node_1,
-        )
-
-        checking_messages = waiting_for_es.addCallback(
+        checking_messages = sending_messages.addCallback(
             self._assert_expected_log_messages,
             node=self.node_1,
             expected_messages=MESSAGES,
         )
 
-        def test_messages_move(ignored):
-            flocker_deploy(self, self.elk_deployment_moved,
-                self.elk_application)
+        moving_elasticsearch = checking_messages.addCallback(
+            lambda _: flocker_deploy(self, self.elk_deployment_moved,
+                                     self.elk_application),
+        )
 
-            waiting_for_es = self._wait_for_elasticsearch_start(node=self.node_2)
+        asserting_messages_moved = moving_elasticsearch.addCallback(
+            self._assert_expected_log_messages,
+            node=self.node_2,
+            expected_messages=MESSAGES,
+        )
 
-            assert_messages_moved = waiting_for_es.addCallback(
-                self._assert_expected_log_messages,
-                node=self.node_2,
-                expected_messages=MESSAGES)
+        return asserting_messages_moved
 
-            return assert_messages_moved
 
-        checking_messages.addCallback(test_messages_move)
-        return checking_messages
+    def _get_elasticsearch(self, node):
+        elasticsearch = Elasticsearch(
+            hosts=[{"host": node, "port": ELASTICSEARCH_EXTERNAL_PORT}],
+        )
 
-    def _wait_for_elasticsearch_start(self, ignored=None, node=None):
-        es_to_wait_for = Elasticsearch(
-            hosts=[{"host": node,
-                    "port": ELASTICSEARCH_EXTERNAL_PORT}])
-        waiting_for_ping = loop_until(lambda: es_to_wait_for.ping())
+        def wait_for_ping():
+            if elasticsearch.ping():
+                return elasticsearch
+            else:
+                return False
+
+        waiting_for_ping = loop_until(wait_for_ping)
         return waiting_for_ping
 
     def _assert_expected_log_messages(self, ignored, node, expected_messages):
@@ -276,25 +271,30 @@ class LinkingTests(TestCase):
         This is bad because it'll loop until timeout if the messages don't
         come
         """
-        es = Elasticsearch(hosts=[{"host": node,
-                            "port": ELASTICSEARCH_EXTERNAL_PORT}])
+        getting_elasticsearch = self._get_elasticsearch(node=node)
 
-        def get_hits():
-            try:
-                return len(es.search()[u'hits'][u'hits']) >= len(expected_messages)
-            except TransportError:
-                return False
+        def wait_for_hits(elasticsearch):
+            def get_hits():
+                try:
+                    num_hits = elasticsearch.search()[u'hits'][u'total']
+                except TransportError:
+                    return False
 
-        d = loop_until(get_hits)
+                if num_hits == len(expected_messages):
+                    return elasticsearch
 
-        def check_same(ignored):
-            hits = es.search()[u'hits'][u'hits']
+            waiting_for_hits = loop_until(get_hits)
+            return waiting_for_hits
+
+        waiting_for_messages = getting_elasticsearch.addCallback(wait_for_hits)
+
+        def check_messages(elasticsearch):
+            hits = elasticsearch.search()[u'hits'][u'hits']
             messages = set([hit[u'_source'][u'message'] for hit in hits])
             self.assertEqual(messages, expected_messages)
 
-        d.addCallback(check_same)
-
-        return d
+        checking_messages = waiting_for_messages.addCallback(check_messages)
+        return checking_messages
 
     def _send_messages_to_logstash(self, node):
         """
