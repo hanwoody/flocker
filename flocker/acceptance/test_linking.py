@@ -220,7 +220,10 @@ class LinkingTests(TestCase):
         After sending messages to logstash, those messages can be found by
         searching Elasticsearch.
         """
-        sending_messages = self._send_messages_to_logstash(self.node_1)
+        sending_messages = self._send_messages_to_logstash(
+            node=self.node_1,
+            messages=MESSAGES,
+        )
 
         checking_messages = sending_messages.addCallback(
             self._assert_expected_log_messages,
@@ -235,7 +238,10 @@ class LinkingTests(TestCase):
         After sending messages to logstash and then moving Elasticsearch to
         another node, those messages can still be found in Elasticsearch.
         """
-        sending_messages = self._send_messages_to_logstash(self.node_1)
+        sending_messages = self._send_messages_to_logstash(
+            node=self.node_1,
+            messages=MESSAGES,
+        )
 
         checking_messages = sending_messages.addCallback(
             self._assert_expected_log_messages,
@@ -256,10 +262,13 @@ class LinkingTests(TestCase):
 
         return asserting_messages_moved
 
-
     def _get_elasticsearch(self, node):
         """
         Get an Elasticsearch instance on a node once one is available.
+
+        :param node: The node hosting, or soon-to-be hosting, an Elasticsearch
+            instance.
+        :return: A running ``Elasticsearch`` instance.
         """
         elasticsearch = Elasticsearch(
             hosts=[{"host": node, "port": ELASTICSEARCH_EXTERNAL_PORT}],
@@ -285,7 +294,10 @@ class LinkingTests(TestCase):
         before making an assertion that the search results have the expected
         contents.
 
-        # TODO params here and elsewhere
+        :param node: The node hosting, or soon-to-be hosting, an Elasticsearch
+            instance.
+        :param set expected_messages: A set of strings expected to be found as
+            messages on Elasticsearch.
         """
         getting_elasticsearch = self._get_elasticsearch(node=node)
 
@@ -312,10 +324,14 @@ class LinkingTests(TestCase):
         checking_messages = waiting_for_messages.addCallback(check_messages)
         return checking_messages
 
-    def _send_messages_to_logstash(self, node):
+    def _send_messages_to_logstash(self, node, messages):
         """
         Wait for logstash to start up and then send messages to it using
         Telnet.
+
+        :param node: The node hosting, or soon-to-be hosting, a logstash
+            instance.
+        :param set expected_messages: A set of strings to send to logstash.
         """
         def get_telnet_connection_to_logstash():
             try:
@@ -326,7 +342,7 @@ class LinkingTests(TestCase):
         waiting_for_logstash = loop_until(get_telnet_connection_to_logstash)
 
         def send_messages(telnet):
-            for message in MESSAGES:
+            for message in messages:
                 telnet.write(message + "\n")
 
         sending_messages = waiting_for_logstash.addCallback(send_messages)
