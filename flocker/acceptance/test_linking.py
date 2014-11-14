@@ -88,7 +88,9 @@ MESSAGES = set([
 
 class LinkingTests(TestCase):
     """
-    Tests for linking containers.
+    Tests for linking containers with Flocker. In particular, tests for linking
+    Logstash and Elasticsearch containers and what happens when the
+    Elasticsearch container is moved.
 
     Similar to:
     http://doc-dev.clusterhq.com/gettingstarted/examples/linking.html
@@ -96,7 +98,6 @@ class LinkingTests(TestCase):
     # TODO remove the loopuntil changes
     # TODO Link to this file from linking.rst
 
-    # TODO proper docstring
     # This has the flaw of not actually testing Kibana. It does connect the
     # linking feature - between elasticsearch and logstash, and the kibana
     # thing needs to be set up right (this test verifies that it is running)
@@ -174,7 +175,8 @@ class LinkingTests(TestCase):
 
     def test_deploy(self):
         """
-        # TODO
+        The test setUp deploys Elasticsearch, logstash and Kibana to the same
+        node.
         """
         d = assert_expected_deployment(self, {
             self.node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
@@ -185,12 +187,10 @@ class LinkingTests(TestCase):
 
     def test_elasticsearch_empty(self):
         """
-        # TODO by default elasticsearch is empty
+        By default there are no log messages in Elasticsearch.
         """
-        waiting_for_es = self._wait_for_elasticsearch_start(node=self.node_1)
-
-        checking_no_messages = waiting_for_es.addCallback(
-            self._assert_expected_log_messages,
+        checking_no_messages = self._assert_expected_log_messages(
+            ignored=None,
             node=self.node_1,
             expected_messages=set([]),
         )
@@ -199,7 +199,8 @@ class LinkingTests(TestCase):
 
     def test_moving_just_elasticsearch(self):
         """
-        # TODO It is possible to move just elasticsearch
+        It is possible to move just Elasticsearch to a new node, keeping
+        logstash and Kibana in place.
         """
         flocker_deploy(self, self.elk_deployment_moved, self.elk_application)
 
@@ -210,9 +211,10 @@ class LinkingTests(TestCase):
 
         return asserting_es_moved
 
-    def test_logstash_messages_in_es(self):
+    def test_logstash_messages_in_elasticsearch(self):
         """
-        # TODO messages from logstash show up in es
+        After sending messages to logstash, those messages can be found by
+        searching Elasticsearch.
         """
         sending_messages = self._send_messages_to_logstash(self.node_1)
 
@@ -224,9 +226,10 @@ class LinkingTests(TestCase):
 
         return checking_messages
 
-    def test_linking(self):
+    def test_moving_data(self):
         """
-        Containers can be linked to using network ports.
+        After sending messages to logstash and then moving Elasticsearch to
+        another node, those messages can still be found in Elasticsearch.
         """
         sending_messages = self._send_messages_to_logstash(self.node_1)
 

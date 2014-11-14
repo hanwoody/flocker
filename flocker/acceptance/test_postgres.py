@@ -127,7 +127,7 @@ class PostgresTests(TestCase):
         return d
 
     @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed")
-    def test_postgres(self):
+    def test_moving_postgres_data(self):
         """
         PostgreSQL and its data can be deployed and moved with Flocker. In
         particular, if PostgreSQL is deployed to a node, and data added to it,
