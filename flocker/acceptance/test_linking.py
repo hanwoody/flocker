@@ -98,16 +98,20 @@ class LinkingTests(TestCase):
     # TODO remove the loopuntil changes
     # TODO Link to this file from linking.rst
 
-    # This has the flaw of not actually testing Kibana. It does connect the
-    # linking feature - between elasticsearch and logstash, and the kibana
+    # TODO This has the flaw of not actually testing Kibana. It does connect
+    # the linking feature - between elasticsearch and logstash, and the kibana
     # thing needs to be set up right (this test verifies that it is running)
     # We could e.g. use selenium and check that there is no error saying that
     # kibana is not connected
+
+    # TODO this script avoids so many race conditions. Try manually running the
+    # tutorial as fast as possible and see if there are places where that
+    # should be warned against.
     """
     @require_flocker_cli
     def setUp(self):
         """
-        TODO
+        Deploy Elasticsearch, logstash and Kibana to one of two nodes.
         """
         getting_nodes = get_nodes(num_nodes=2)
 
@@ -254,6 +258,9 @@ class LinkingTests(TestCase):
 
 
     def _get_elasticsearch(self, node):
+        """
+        Get an Elasticsearch instance on a node once one is available.
+        """
         elasticsearch = Elasticsearch(
             hosts=[{"host": node, "port": ELASTICSEARCH_EXTERNAL_PORT}],
         )
@@ -269,10 +276,16 @@ class LinkingTests(TestCase):
 
     def _assert_expected_log_messages(self, ignored, node, expected_messages):
         """
-        Takes elasticsearch instance, returns log messages.
+        Check that expected messages can eventually be found by
+        Elasticsearch.
 
-        This is bad because it'll loop until timeout if the messages don't
-        come
+        After sending two messages to logstash, checking elasticsearch will
+        at first show that there are zero messages, then later one, then later
+        two. Therefore this waits for the expected number of search results
+        before making an assertion that the search results have the expected
+        contents.
+
+        # TODO params here and elsewhere
         """
         getting_elasticsearch = self._get_elasticsearch(node=node)
 
@@ -301,7 +314,8 @@ class LinkingTests(TestCase):
 
     def _send_messages_to_logstash(self, node):
         """
-        Logstash sometimes takes ages to start up
+        Wait for logstash to start up and then send messages to it using
+        Telnet.
         """
         def get_telnet_connection_to_logstash():
             try:
