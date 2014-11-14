@@ -96,7 +96,6 @@ class LinkingTests(TestCase):
     http://doc-dev.clusterhq.com/gettingstarted/examples/linking.html
 
     # TODO remove the loopuntil changes
-    # TODO Link to this file from linking.rst
 
     # TODO This has the flaw of not actually testing Kibana. It does connect
     # the linking feature - between elasticsearch and logstash, and the kibana
