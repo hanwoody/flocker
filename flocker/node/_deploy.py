@@ -137,6 +137,8 @@ class StartApplication(object):
         else:
             docker_environment = None
 
+        restart_policy = application.restart_policy
+
         return deployer.docker_client.add(
             application.name,
             application.image.full_name,
@@ -145,6 +147,7 @@ class StartApplication(object):
             volumes=volumes,
             mem_limit=application.memory_limit,
             cpu_shares=application.cpu_shares,
+            restart_policy=restart_policy,
         )
 
 

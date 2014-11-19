@@ -63,7 +63,9 @@ class Volume(object):
              Attribute("environment", default_value=None),
              Attribute("volumes", default_value=()),
              Attribute("mem_limit", default_value=None),
-             Attribute("cpu_shares", default_value=None)])
+             Attribute("cpu_shares", default_value=None),
+             Attribute("restart_policy", default_value=None),
+            ])
 class Unit(object):
     """
     Information about a unit managed by Docker.
@@ -108,6 +110,8 @@ class Unit(object):
         Or ``None`` to let it have the default number of shares.  Docker maps
         this value onto the cgroups ``cpu.shares`` value (the default of which
         is probably 1024).
+
+    :ivar ? restart_policy: The restart policy of the container.
     """
 
 
@@ -318,7 +322,7 @@ class DockerClient(object):
         return ports
 
     def add(self, unit_name, image_name, ports=None, environment=None,
-            volumes=(), mem_limit=None, cpu_shares=None):
+            volumes=(), mem_limit=None, cpu_shares=None, restart_policy):
         container_name = self._to_container_name(unit_name)
 
         if environment is not None:
@@ -361,7 +365,8 @@ class DockerClient(object):
                                        u"ro": False}
                                       for volume in volumes},
                                port_bindings={p.internal_port: p.external_port
-                                              for p in ports})
+                                              for p in ports},
+                               restart_policy={})
         d = deferToThread(_add)
 
         def _extract_error(failure):
@@ -447,6 +452,7 @@ class DockerClient(object):
                 cpu_shares = None if cpu_shares == 0 else cpu_shares
                 mem_limit = data[u"Config"][u"Memory"]
                 mem_limit = None if mem_limit == 0 else mem_limit
+                restart_policy = RestartPolicy()
                 result.add(Unit(
                     name=name,
                     container_name=self._to_container_name(name),
@@ -455,7 +461,8 @@ class DockerClient(object):
                     ports=frozenset(ports),
                     volumes=frozenset(volumes),
                     mem_limit=mem_limit,
-                    cpu_shares=cpu_shares),
+                    cpu_shares=cpu_shares,
+                    restart_policy=restart_policy)
                 )
             return result
         return deferToThread(_list)

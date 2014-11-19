@@ -283,3 +283,29 @@ class DeployerTests(TestCase):
             deferred_list.addCallback(app_memory)
         d.addCallback(inspect_application)
         return d
+
+
+    def test_restart_policy_never(self):
+        """
+        An ``Application`` with a restart policy of never isn't restarted
+        after it exits.
+        """
+
+
+    def test_restart_policy_never(self):
+        """
+        An ``Application`` with a restart policy of always is restarted
+        after it exits.
+        """
+
+    def test_restart_policy_on_failure(self):
+        """
+        An ``Application`` with a restart policy of on-failure is restarted
+        after it exits with a non-zero result.
+        """
+
+    def test_restart_policy_on_failure(self):
+        """
+        An ``Application`` with a restart policy of on-failure and a maximum
+        retry count is not restarted, if it fails enough times.
+        """

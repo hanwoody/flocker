@@ -89,9 +89,29 @@ class AttachedVolume(object):
         except KeyError:
             return None
 
+class RestartPolicies(Values):
+    NEVER = ValueConstant(None)
+    ALWAYS = ValueConstant("always")
+    ON_FAILURE = ValueConstant("on-failure")
+
+@attributes(["policy", Attribute("maximum_retry_count", default=None)],
+            apply_immutable=True)
+class RestartPolicy(object):
+    """
+    Restart policy for a application.
+
+    :ivar RestartPolicies policy: The policy to use.
+    :ivar int maximum_retry_count: If ``policy`` is ``ON_FAILURE``, the number
+        of times to retry, before failing; or ``None`` if it should never fail.
+        If ``policy`` is not ``ON_FAILURE``, this is ``None``.
+    """
+    def __init__(self):
+        pass # Check model conditions
+
 
 @attributes(["name", "image", "ports", "volume", "links", "environment",
-             "memory_limit", "cpu_shares"],
+             "memory_limit", "cpu_shares",
+             Attribute("restart_policy", default=RestartPolicy(policy=RestartPolicies.NEVER))],
             defaults=dict(ports=frozenset(), volume=None,
                           links=frozenset(), environment=None,
                           memory_limit=None, cpu_shares=None))
