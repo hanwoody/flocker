@@ -12,6 +12,8 @@ from .._docker import (
     IDockerClient, FakeDockerClient, AlreadyExists, PortMap, Unit,
     Environment, Volume)
 
+from .._model import RestartAlways
+
 
 def make_idockerclient_tests(fixture):
     """
@@ -120,7 +122,7 @@ def make_idockerclient_tests(fixture):
                 volumes=volumes,
                 mem_limit=100000000,
                 cpu_shares=512,
-                restart_policy={},
+                restart_policy=RestartAlways(),
             )
             d.addCallback(lambda _: client.list())
 
@@ -129,7 +131,7 @@ def make_idockerclient_tests(fixture):
                 container_image=image, ports=frozenset(portmaps),
                 environment=None, volumes=frozenset(volumes),
                 mem_limit=100000000, cpu_shares=512,
-                restart_policy={},
+                restart_policy=RestartAlways(),
             )
 
             def got_list(units):
