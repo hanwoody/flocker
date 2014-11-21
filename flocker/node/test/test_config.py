@@ -19,7 +19,7 @@ from .._config import (
 )
 from .._model import (
     Application, AttachedVolume, DockerImage, Deployment, Node, Port, Link,
-    NodeState,
+    NodeState, RestartNever, RestartAlways, RestartOnFailure
 )
 
 
@@ -2052,8 +2052,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'cube': {
+                    'image': 'twisted/plutonium',
                 }
             },
             'version': 1
@@ -2061,8 +2061,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         parser = FlockerConfiguration(config)
         applications = parser.applications()
         self.assertEqual(
-            applications['mysql-hybridcluster'].cpu_shares,
-            RestartPolicy(policy=RestartPolicies.NEVER))
+            applications['cube'].cpu_shares,
+            RestartNever())
 
     def test_retry_policy_never(self):
         """
@@ -2071,8 +2071,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'wolfwood': {
+                    'image': 'twisted/code',
                     'retry_policy': {
                         'name': 'never',
                     },
@@ -2083,8 +2083,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         parser = FlockerConfiguration(config)
         applications = parser.applications()
         self.assertEqual(
-            applications['mysql-hybridcluster'].cpu_shares,
-            RestartPolicy(policy=RestartPolicies.NEVER))
+            applications['wolfwood'].cpu_shares,
+            RestartNever())
 
     def test_retry_policy_always(self):
         """
@@ -2093,8 +2093,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'darmstadtium': {
+                    'image': 'atomic/110',
                     'retry_policy': {
                         'name': 'always',
                     },
@@ -2105,8 +2105,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         parser = FlockerConfiguration(config)
         applications = parser.applications()
         self.assertEqual(
-            applications['mysql-hybridcluster'].cpu_shares,
-            RestartPolicy(policy=RestartPolicies.ALWAYS))
+            applications['darmstadtium'].cpu_shares,
+            RestartAlways())
 
     def test_retry_policy_on_failure(self):
         """
@@ -2115,8 +2115,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'boron': {
+                    'image': 'atomic/5',
                     'retry_policy': {
                         'name': 'on-failure',
                     },
@@ -2127,8 +2127,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         parser = FlockerConfiguration(config)
         applications = parser.applications()
         self.assertEqual(
-            applications['mysql-hybridcluster'].cpu_shares,
-            RestartPolicy(policy=RestartPolicies.ON_FAILURE))
+            applications['boron'].cpu_shares,
+            RestartOnFailure(maximum_retry_count=None))
 
     def test_retry_policy_on_failure_with_retry_count(self):
         """
@@ -2137,8 +2137,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'yttrium': {
+                    'image': 'atomic/39',
                     'retry_policy': {
                         'name': 'on-failure',
                         'max_retry_count': 10,
@@ -2150,8 +2150,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         parser = FlockerConfiguration(config)
         applications = parser.applications()
         self.assertEqual(
-            applications['mysql-hybridcluster'].cpu_shares,
-            RestartPolicy(policy=RestartPolicies.ON_FAILURE, max_retry_count=10))
+            applications['yttrium'].cpu_shares,
+            RestartOnFailure(max_retry_count=10))
 
     def test_error_on_retry_policy_always_with_retry_count(self):
         """
@@ -2160,8 +2160,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'molybdenum': {
+                    'image': 'atomic/42',
                     'retry_policy': {
                         'name': 'always',
                         'max_retry_count': 10,
@@ -2173,18 +2173,18 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         parser = FlockerConfiguration(config)
         applications = parser.applications()
         self.assertEqual(
-            applications['mysql-hybridcluster'].cpu_shares,
-            RestartPolicy(policy=RestartPolicies.ON_FAILURE, max_retry_count=10))
+            applications['molybdenum'].cpu_shares,
+            RestartOnFailure(max_retry_count=10))
 
-    def test_error_on_retry_policy_always_with_retry_count(self):
+    def test_error_on_retry_policy_on_failure_with_retry_count(self):
         """
         ``FlockerConfiguration.applications`` raises a ``ConfigurationError``
         if maximum retry count is specified with a policy other than on-failure.
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'red-fish': {
+                    'image': 'seuss/one-fish-two-fish',
                     'retry_policy': {
                         'name': 'on-failure',
                         'max_retry_count': 10,
@@ -2197,7 +2197,7 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         exception = self.assertRaises(ConfigurationError,
                                       parser.applications)
         self.assertEqual(
-            "Application 'mysql-hybridcluster' has a config error. "
+            "Application 'redfish' has a config error. "
             "MESSAGE-TEXT",
             exception.message
         )
@@ -2209,8 +2209,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'lorax': {
+                    'image': 'seuss/lorax',
                     'retry_policy': {
                         'name': 'on-failure',
                         'max_retry_count': "fifty",
@@ -2223,7 +2223,7 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         exception = self.assertRaises(ConfigurationError,
                                       parser.applications)
         self.assertEqual(
-            "Application 'mysql-hybridcluster' has a config error. "
+            "Application 'lorax' has a config error. "
             "MESSAGE-TEXT",
             exception.message
         )
@@ -2235,8 +2235,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'one-fish': {
+                    'image': 'seuss/one-fish-two-fish',
                     'retry_policy': {
                         'name': 'on-failure',
                         'extra': "key",
@@ -2249,7 +2249,7 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         exception = self.assertRaises(ConfigurationError,
                                       parser.applications)
         self.assertEqual(
-            "Application 'mysql-hybridcluster' has a config error. "
+            "Application 'one-fish' has a config error. "
             "MESSAGE-TEXT",
             exception.message
         )
@@ -2261,8 +2261,8 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         """
         config = {
             'applications': {
-                'mysql-hybridcluster': {
-                    'image': 'clusterhq/mysql',
+                'green-eggs': {
+                    'image': 'seuss/green-eggs-ham',
                     'retry_policy': 'pretend-i-am-a-dictionary',
                 }
             },
@@ -2272,7 +2272,7 @@ class ApplicationsFromConfigurationTests(SynchronousTestCase):
         exception = self.assertRaises(ConfigurationError,
                                       parser.applications)
         self.assertEqual(
-            "Application 'mysql-hybridcluster' has a config error. "
+            "Application 'green-egss' has a config error. "
             "MESSAGE-TEXT",
             exception.message
         )
