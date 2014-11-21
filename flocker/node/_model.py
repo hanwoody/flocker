@@ -5,7 +5,8 @@
 Record types for representing deployment models.
 """
 
-from characteristic import attributes
+from characteristic import attributes, Attribute
+from zope.interface import Interface, implementer
 
 
 @attributes(["repository", "tag"], defaults=dict(tag=u'latest'))
@@ -89,29 +90,62 @@ class AttachedVolume(object):
         except KeyError:
             return None
 
-class RestartPolicies(Values):
-    NEVER = ValueConstant(None)
-    ALWAYS = ValueConstant("always")
-    ON_FAILURE = ValueConstant("on-failure")
 
-@attributes(["policy", Attribute("maximum_retry_count", default=None)],
-            apply_immutable=True)
-class RestartPolicy(object):
+class IRestartPolicy(Interface):
     """
-    Restart policy for a application.
+    Restart policy for an application.
+    """
 
-    :ivar RestartPolicies policy: The policy to use.
-    :ivar int maximum_retry_count: If ``policy`` is ``ON_FAILURE``, the number
-        of times to retry, before failing; or ``None`` if it should never fail.
-        If ``policy`` is not ``ON_FAILURE``, this is ``None``.
+    def serialize_to_docker_api(self):
+        """
+        Serialize this policy to the format expected by the docker API.
+
+        :returns: A dictionary suitable to pass to docker.
+        """
+
+
+@implementer(IRestartPolicy)
+@attributes([], apply_immutable=True)
+class RestartNever(object):
+    """
+    A restart policy that never restarts an application.
+    """
+
+    def serialize_to_docker_api(self):
+        pass
+
+
+@implementer(IRestartPolicy)
+@attributes([], apply_immutable=True)
+class RestartAlways(object):
+    """
+    A restart policy that always restarts an application.
     """
     def __init__(self):
         pass # Check model conditions
 
+    def serialize_to_docker_api(self):
+        pass
+
+
+@implementer(IRestartPolicy)
+@attributes(["maximum_retry_count"], apply_immutable=True)
+class RestartOnFailre(object):
+    """
+    A restart policy that restarts an application when it fails.
+
+    :ivar int maximum_retry_count: The number of times the application is
+        allowed to fail, before the giving up.
+    """
+
+    def serialize_to_docker_api(self):
+        pass
+
+
 
 @attributes(["name", "image", "ports", "volume", "links", "environment",
              "memory_limit", "cpu_shares",
-             Attribute("restart_policy", default=RestartPolicy(policy=RestartPolicies.NEVER))],
+             Attribute("restart_policy", default=RestartNever())],
             defaults=dict(ports=frozenset(), volume=None,
                           links=frozenset(), environment=None,
                           memory_limit=None, cpu_shares=None))
@@ -143,6 +177,9 @@ class Application(object):
         that should be exposed in the ``Application`` container, or ``None``
         if no environment variables are specified. A ``frozenset`` of
         variables contains a ``tuple`` series mapping (key, value).
+
+    :ivar IRestartPolicy restart_policy: The restart policy for this
+        application.
     """
 
 
