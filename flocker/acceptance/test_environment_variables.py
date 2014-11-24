@@ -128,28 +128,34 @@ class EnvironmentVariableTests(TestCase):
 
     def _get_mysql_connection(self, host, port, user, passwd, db=None):
         """
-        Returns a ``Deferred`` which fires with a psycopg2 connection when one
+        Returns a ``Deferred`` which fires with a pymysql connection when one
         has been created.
 
         See http://pythonhosted.org//psycopg2/module.html#psycopg2.connect for
         parameter information.
 
-        # TODO Rename this, and the nested function
+        # Link to parameter docs
+        # TODO try mysqldb instead
         """
-        def connect_to_postgres():
+        def connect_to_mysql():
             try:
-                return connect(host=host, port=MYSQL_EXTERNAL_PORT,
-                               user=user, passwd=passwd, db=db)
+                return connect(
+                    host=host,
+                    port=MYSQL_EXTERNAL_PORT,
+                    user=user,
+                    passwd=passwd,
+                    db=db,
+                )
             except OperationalError:
                 return False
 
-        d = loop_until(connect_to_postgres)
+        d = loop_until(connect_to_mysql)
         return d
 
     def test_moving_data(self):
         """
         After adding data to MySQL and then moving it to another node, the data
-        is still available.
+        added is available on the second node.
         """
         user = b'root'
         password = b'clusterhq'
@@ -164,23 +170,31 @@ class EnvironmentVariableTests(TestCase):
             passwd=password,
         )
 
-        def add_data_node_1(conn):
-            cur = conn.cursor()
-            cur.execute("CREATE DATABASE {database};".format(database=database))
-            cur.execute("USE {database};".format(database=database))
-            cur.execute("CREATE TABLE `{table}` (`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;".format(table=table))
-            cur.execute("INSERT INTO `{table}` VALUES('','{data}');".format(table=table, data=data))
-            cur.close()
-            conn.close()
+        def add_data_node_1(connection):
+            cursor = connection.cursor()
+            cursor.execute("CREATE DATABASE {database};".format(
+                database=database))
+            cursor.execute("USE {database};".format(database=database))
+            cursor.execute(
+                "CREATE TABLE `{table}` ".format(table=table) +
+                "(`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) " +
+                "NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;",
+            )
+
+            cursor.execute("INSERT INTO `{table}` VALUES('','{data}');".format(
+                table=table, data=data))
+            cursor.close()
+            connection.close()
 
         getting_mysql.addCallback(add_data_node_1)
 
         def get_mysql_2(ignored):
             """
-            Move MySQL onto node_2 and connect to it.
+            Move MySQL to ``node_2`` and return a ``Deferred`` which fires
+            with a connection to the previously created database on ``node_2``.
             """
             flocker_deploy(self, self.mysql_deployment_moved,
-                self.mysql_application)
+                           self.mysql_application)
 
             getting_mysql = self._get_mysql_connection(
                 host=self.node_2,
@@ -194,12 +208,12 @@ class EnvironmentVariableTests(TestCase):
 
         getting_mysql_2 = getting_mysql.addCallback(get_mysql_2)
 
-        def verify_data_moves(conn_2):
-            cur_2 = conn_2.cursor()
-            cur_2.execute("SELECT * FROM `{table}`;".format(table=table))
-            self.addCleanup(cur_2.close)
-            self.addCleanup(conn_2.close)
-            self.assertEqual(cur_2.fetchall(), ((1, data),))
+        def verify_data_moves(connection_2):
+            cursor_2 = connection_2.cursor()
+            cursor_2.execute("SELECT * FROM `{table}`;".format(table=table))
+            self.addCleanup(cursor_2.close)
+            self.addCleanup(connection_2.close)
+            self.assertEqual(cursor_2.fetchall(), ((1, data),))
 
         asserting_data_moved = getting_mysql_2.addCallback(verify_data_moves)
         return asserting_data_moved
