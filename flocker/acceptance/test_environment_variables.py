@@ -23,9 +23,10 @@ from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
 MYSQL_INTERNAL_PORT = 3306
 MYSQL_EXTERNAL_PORT = 3306
 
+MYSQL_PASSWORD = u"clusterhq"
 MYSQL_APPLICATION = u"mysql-volume-example"
 MYSQL_IMAGE = u"mysql:5.6.17"
-MYSQL_ENVIRONMENT = {"MYSQL_ROOT_PASSWORD": u"clusterhq"}
+MYSQL_ENVIRONMENT = {"MYSQL_ROOT_PASSWORD": MYSQL_PASSWORD}
 MYSQL_VOLUME_MOUNTPOINT = u'/var/lib/mysql'
 
 MYSQL_UNIT = Unit(
@@ -157,7 +158,6 @@ class EnvironmentVariableTests(TestCase):
         added is available on the second node.
         """
         user = b'root'
-        password = b'clusterhq'
         data = b'flocker test'
         database = b'example'
         table = b'testtable'
@@ -166,7 +166,7 @@ class EnvironmentVariableTests(TestCase):
             host=self.node_1,
             port=MYSQL_EXTERNAL_PORT,
             user=user,
-            passwd=password,
+            passwd=MYSQL_PASSWORD,
         )
 
         def add_data_node_1(connection):
@@ -199,7 +199,7 @@ class EnvironmentVariableTests(TestCase):
                 host=self.node_2,
                 port=MYSQL_EXTERNAL_PORT,
                 user=user,
-                passwd=password,
+                passwd=MYSQL_PASSWORD,
                 db=database,
             )
 
