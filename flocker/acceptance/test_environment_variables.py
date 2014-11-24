@@ -7,7 +7,8 @@ Tests for environment variables.
 # TODO Create and use @require_mysql, similar to
 # @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed") in test_postgres.py
 # TODO add this to the licensing google doc
-import pymysql
+from pymysql import connect
+from pymysql.err import OperationalError
 
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
@@ -125,7 +126,7 @@ class EnvironmentVariableTests(TestCase):
 
         return asserting_mysql_moved
 
-    def _get_postgres_connection(self, host, port, user, passwd, db=None):
+    def _get_mysql_connection(self, host, port, user, passwd, db=None):
         """
         Returns a ``Deferred`` which fires with a psycopg2 connection when one
         has been created.
@@ -137,12 +138,11 @@ class EnvironmentVariableTests(TestCase):
         """
         def connect_to_postgres():
             try:
-                return pymysql.connect(host=host, port=MYSQL_EXTERNAL_PORT,
+                return connect(host=host, port=MYSQL_EXTERNAL_PORT,
                                user=user, passwd=passwd, db=db)
-            except pymysql.err.OperationalError:
+            except OperationalError:
                 return False
 
-        # sleep(10)
         d = loop_until(connect_to_postgres)
         return d
 
@@ -151,14 +151,19 @@ class EnvironmentVariableTests(TestCase):
         After adding data to MySQL and then moving it to another node, the data
         is still available.
         """
+        user = b'root'
+        password = b'clusterhq'
 
-        connecting_to_application = self._get_postgres_connection(host=self.node_1, port=MYSQL_EXTERNAL_PORT,
-                                user='root', passwd='clusterhq')
+        getting_mysql = self._get_mysql_connection(
+            host=self.node_1,
+            port=MYSQL_EXTERNAL_PORT,
+            user=user,
+            passwd=password,
+        )
 
-        def add_data(conn):
+        def add_data_node_1(conn):
             cur = conn.cursor()
-
-            # TODO use variables for conn and executed things
+            # TODO use variables for executed things
             cur.execute("CREATE DATABASE example;")
             cur.execute("USE example;")
             cur.execute("CREATE TABLE `testtable` (`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;")
@@ -166,25 +171,33 @@ class EnvironmentVariableTests(TestCase):
             cur.close()
             conn.close()
 
-        connecting_to_application.addCallback(add_data)
+        getting_mysql.addCallback(add_data_node_1)
 
-        connecting_to_application.addCallback(lambda _:
+        def get_mysql_2(ignored):
+            """
+            Move MySQL onto node_2 and connect to it.
+            """
             flocker_deploy(self, self.mysql_deployment_moved,
-                           self.mysql_application)
+                self.mysql_application)
+
+            getting_mysql = self._get_mysql_connection(
+                host=self.node_2,
+                port=MYSQL_EXTERNAL_PORT,
+                user=user,
+                passwd=password,
+                db='example',
             )
 
-        connecting_to_application_2 = connecting_to_application.addCallback(lambda _:
-            self._get_postgres_connection(host=self.node_2, port=MYSQL_EXTERNAL_PORT,
-                                                user='root', passwd='clusterhq', db='example')
-            )
+            return getting_mysql
+
+        getting_mysql_2 = getting_mysql.addCallback(get_mysql_2)
 
         def verify_data_moves(conn_2):
             cur_2 = conn_2.cursor()
             cur_2.execute("SELECT * FROM `testtable`;")
+            self.addCleanup(cur_2.close)
+            self.addCleanup(conn_2.close)
             self.assertEqual(cur_2.fetchall(), ((1, 'flocker test'),))
-            cur_2.close()
-            conn_2.close()
 
-        asserting_data_moved = connecting_to_application_2.addCallback(verify_data_moves)
-
+        asserting_data_moved = getting_mysql_2.addCallback(verify_data_moves)
         return asserting_data_moved
