@@ -174,6 +174,7 @@ class PostgresTests(TestCase):
         inserting_data = getting_database.addCallback(insert_data)
 
         def move_postgres(ignored):
+            # TODO this should be a separate test
             postgres_deployment_moved = {
                 u"version": 1,
                 u"nodes": {

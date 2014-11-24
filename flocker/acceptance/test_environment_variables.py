@@ -13,6 +13,7 @@ from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
 from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
+from flocker.testtools import loop_until
 
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
                         require_flocker_cli)
@@ -124,39 +125,66 @@ class EnvironmentVariableTests(TestCase):
 
         return asserting_mysql_moved
 
+    def _get_postgres_connection(self, host, port, user, passwd, db=None):
+        """
+        Returns a ``Deferred`` which fires with a psycopg2 connection when one
+        has been created.
+
+        See http://pythonhosted.org//psycopg2/module.html#psycopg2.connect for
+        parameter information.
+
+        # TODO Rename this, and the nested function
+        """
+        def connect_to_postgres():
+            try:
+                return pymysql.connect(host=host, port=MYSQL_EXTERNAL_PORT,
+                               user=user, passwd=passwd, db=db)
+            except pymysql.err.OperationalError:
+                return False
+
+        # sleep(10)
+        d = loop_until(connect_to_postgres)
+        return d
+
     def test_moving_data(self):
         """
         After adding data to MySQL and then moving it to another node, the data
         is still available.
         """
-        from time import sleep
-        # TODO remove this sleep and add timeout / loop_until
-        sleep(10)
-        conn = pymysql.connect(host=self.node_1, port=MYSQL_EXTERNAL_PORT,
-                               user='root', passwd='clusterhq')
 
-        cur = conn.cursor()
+        connecting_to_application = self._get_postgres_connection(host=self.node_1, port=MYSQL_EXTERNAL_PORT,
+                                user='root', passwd='clusterhq')
 
-        # TODO use variables for conn and executed things
-        cur.execute("CREATE DATABASE example;")
-        cur.execute("USE example;")
-        cur.execute("CREATE TABLE `testtable` (`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;")
-        cur.execute("INSERT INTO `testtable` VALUES('','flocker test');")
-        cur.close()
-        conn.close()
+        def add_data(conn):
+            cur = conn.cursor()
 
-        flocker_deploy(self, self.mysql_deployment_moved,
-                       self.mysql_application)
+            # TODO use variables for conn and executed things
+            cur.execute("CREATE DATABASE example;")
+            cur.execute("USE example;")
+            cur.execute("CREATE TABLE `testtable` (`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;")
+            cur.execute("INSERT INTO `testtable` VALUES('','flocker test');")
+            cur.close()
+            conn.close()
 
-        # TODO remove this sleep and add timeout / loop_until
-        sleep(10)
-        conn_2 = pymysql.connect(host=self.node_2, port=MYSQL_EXTERNAL_PORT,
-                                user='root', passwd='clusterhq', db='example')
+        connecting_to_application.addCallback(add_data)
 
-        cur_2 = conn_2.cursor()
-        cur_2.execute("SELECT * FROM `testtable`;")
-        self.assertEqual(cur_2.fetchall(), ((1, 'flocker test'),))
-        cur_2.close()
-        conn_2.close()
+        connecting_to_application.addCallback(lambda _:
+            flocker_deploy(self, self.mysql_deployment_moved,
+                           self.mysql_application)
+            )
 
-#        return asserting_data_moved
+        connecting_to_application_2 = connecting_to_application.addCallback(lambda _:
+            self._get_postgres_connection(host=self.node_2, port=MYSQL_EXTERNAL_PORT,
+                                                user='root', passwd='clusterhq', db='example')
+            )
+
+        def verify_data_moves(conn_2):
+            cur_2 = conn_2.cursor()
+            cur_2.execute("SELECT * FROM `testtable`;")
+            self.assertEqual(cur_2.fetchall(), ((1, 'flocker test'),))
+            cur_2.close()
+            conn_2.close()
+
+        asserting_data_moved = connecting_to_application_2.addCallback(verify_data_moves)
+
+        return asserting_data_moved
