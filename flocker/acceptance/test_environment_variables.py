@@ -7,7 +7,7 @@ Tests for environment variables.
 # TODO Create and use @require_mysql, similar to
 # @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed") in test_postgres.py
 # TODO add this to the licensing google doc
-# import pymysql
+import pymysql
 
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
@@ -126,16 +126,37 @@ class EnvironmentVariableTests(TestCase):
 
     def test_moving_data(self):
         """
-        After sending messages to logstash and then moving Elasticsearch to
-        another node, those messages can still be found in Elasticsearch.
+        After adding data to MySQL and then moving it to another node, the data
+        is still available.
         """
-        # Add data
+        from time import sleep
+        # TODO remove this sleep and add timeout / loop_until
+        sleep(10)
+        conn = pymysql.connect(host=self.node_1, port=MYSQL_EXTERNAL_PORT,
+                               user='root', passwd='clusterhq')
 
-        # Move mysql
+        cur = conn.cursor()
+
+        # TODO use variables for conn and executed things
+        cur.execute("CREATE DATABASE example;")
+        cur.execute("USE example;")
+        cur.execute("CREATE TABLE `testtable` (`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;")
+        cur.execute("INSERT INTO `testtable` VALUES('','flocker test');")
+        cur.close()
+        conn.close()
 
         flocker_deploy(self, self.mysql_deployment_moved,
-                       self.mysql_application),
+                       self.mysql_application)
 
-        # Check data
+        # TODO remove this sleep and add timeout / loop_until
+        sleep(10)
+        conn_2 = pymysql.connect(host=self.node_2, port=MYSQL_EXTERNAL_PORT,
+                                user='root', passwd='clusterhq', db='example')
+
+        cur_2 = conn_2.cursor()
+        cur_2.execute("SELECT * FROM `testtable`;")
+        self.assertEqual(cur_2.fetchall(), ((1, 'flocker test'),))
+        cur_2.close()
+        conn_2.close()
 
 #        return asserting_data_moved
