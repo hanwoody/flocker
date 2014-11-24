@@ -3,7 +3,8 @@
 """
 Tests for environment variables.
 """
-# TODO add PyMySQL to setup.py,
+# TODO add PyMySQL to setup.py, unless a reviewer thinks that this should use
+# MySQL-python. The reason I didn't is that this is pure Python.
 # TODO Create and use @require_mysql, similar to
 # @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed") in test_postgres.py
 # TODO add this to the licensing google doc
@@ -46,7 +47,8 @@ MYSQL_UNIT = Unit(
 
 class EnvironmentVariableTests(TestCase):
     """
-    # TODO docstring
+    Tests for passing environment variables to containers, in particular
+    passing a root password to MySQL.
 
     # TODO mention these tests on the doc
 
@@ -128,14 +130,11 @@ class EnvironmentVariableTests(TestCase):
 
     def _get_mysql_connection(self, host, port, user, passwd, db=None):
         """
-        Returns a ``Deferred`` which fires with a pymysql connection when one
+        Returns a ``Deferred`` which fires with a PyMySQL connection when one
         has been created.
 
-        # TODO Link to parameter docs
-        See XXX for
-        parameter information.
-
-        # TODO try mysqldb instead
+        Parameters are passed directly to PyMySQL:
+        https://github.com/PyMySQL/PyMySQL
         """
         def connect_to_mysql():
             try:
