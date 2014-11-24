@@ -131,10 +131,10 @@ class EnvironmentVariableTests(TestCase):
         Returns a ``Deferred`` which fires with a pymysql connection when one
         has been created.
 
-        See http://pythonhosted.org//psycopg2/module.html#psycopg2.connect for
+        # TODO Link to parameter docs
+        See XXX for
         parameter information.
 
-        # Link to parameter docs
         # TODO try mysqldb instead
         """
         def connect_to_mysql():
