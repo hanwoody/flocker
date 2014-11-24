@@ -153,6 +153,9 @@ class EnvironmentVariableTests(TestCase):
         """
         user = b'root'
         password = b'clusterhq'
+        data = b'flocker test'
+        database = b'example'
+        table = b'testtable'
 
         getting_mysql = self._get_mysql_connection(
             host=self.node_1,
@@ -163,11 +166,10 @@ class EnvironmentVariableTests(TestCase):
 
         def add_data_node_1(conn):
             cur = conn.cursor()
-            # TODO use variables for executed things
-            cur.execute("CREATE DATABASE example;")
-            cur.execute("USE example;")
-            cur.execute("CREATE TABLE `testtable` (`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;")
-            cur.execute("INSERT INTO `testtable` VALUES('','flocker test');")
+            cur.execute("CREATE DATABASE {database};".format(database=database))
+            cur.execute("USE {database};".format(database=database))
+            cur.execute("CREATE TABLE `{table}` (`id` INT NOT NULL AUTO_INCREMENT,`name` VARCHAR(45) NULL,PRIMARY KEY (`id`)) ENGINE = MyISAM;".format(table=table))
+            cur.execute("INSERT INTO `{table}` VALUES('','{data}');".format(table=table, data=data))
             cur.close()
             conn.close()
 
@@ -185,7 +187,7 @@ class EnvironmentVariableTests(TestCase):
                 port=MYSQL_EXTERNAL_PORT,
                 user=user,
                 passwd=password,
-                db='example',
+                db=database,
             )
 
             return getting_mysql
@@ -194,10 +196,10 @@ class EnvironmentVariableTests(TestCase):
 
         def verify_data_moves(conn_2):
             cur_2 = conn_2.cursor()
-            cur_2.execute("SELECT * FROM `testtable`;")
+            cur_2.execute("SELECT * FROM `{table}`;".format(table=table))
             self.addCleanup(cur_2.close)
             self.addCleanup(conn_2.close)
-            self.assertEqual(cur_2.fetchall(), ((1, 'flocker test'),))
+            self.assertEqual(cur_2.fetchall(), ((1, data),))
 
         asserting_data_moved = getting_mysql_2.addCallback(verify_data_moves)
         return asserting_data_moved
