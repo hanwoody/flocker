@@ -185,7 +185,7 @@ class EnvironmentVariableTests(TestCase):
 
         getting_mysql.addCallback(add_data_node_1)
 
-        def get_mysql_2(ignored):
+        def get_mysql_node_2(ignored):
             """
             Move MySQL to ``node_2`` and return a ``Deferred`` which fires
             with a connection to the previously created database on ``node_2``.
@@ -203,7 +203,7 @@ class EnvironmentVariableTests(TestCase):
 
             return getting_mysql
 
-        getting_mysql_2 = getting_mysql.addCallback(get_mysql_2)
+        getting_mysql_2 = getting_mysql.addCallback(get_mysql_node_2)
 
         def verify_data_moves(connection_2):
             cursor_2 = connection_2.cursor()
