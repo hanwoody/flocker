@@ -177,12 +177,14 @@ class PostgresTests(TestCase):
         connecting_to_application.addCallback(create_database)
 
         def connect_to_database(ignored):
-            self._get_postgres_connection(
+            getting_postgres = self._get_postgres_connection(
                 host=self.node_1,
                 user=user,
                 port=POSTGRES_EXTERNAL_PORT,
                 database=database,
             )
+
+            return getting_postgres
 
         connecting_to_database = connecting_to_application.addCallback(
             connect_to_database)
