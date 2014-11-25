@@ -71,6 +71,14 @@ class PostgresTests(TestCase):
                 },
             }
 
+            self.postgres_deployment_moved = {
+                u"version": 1,
+                u"nodes": {
+                    self.node_1: [],
+                    self.node_2: [POSTGRES_APPLICATION],
+                },
+            }
+
             self.postgres_application = {
                 u"version": 1,
                 u"applications": {
@@ -108,6 +116,20 @@ class PostgresTests(TestCase):
         })
 
         return d
+
+    def test_moving_postgres(self):
+        """
+        It is possible to move PostgreSQL to a new node.
+        """
+        flocker_deploy(self, self.postgres_deployment_moved,
+                       self.postgres_application)
+
+        asserting_postgres_moved = assert_expected_deployment(self, {
+            self.node_1: set([]),
+            self.node_2: set([POSTGRES_UNIT]),
+        })
+
+        return asserting_postgres_moved
 
     def _get_postgres_connection(self, host, user, port, database=None):
         """
@@ -154,12 +176,18 @@ class PostgresTests(TestCase):
 
         connecting_to_application.addCallback(create_database)
 
-        getting_database = connecting_to_application.addCallback(
-            lambda _: self._get_postgres_connection(
-                host=self.node_1, user=user, port=POSTGRES_EXTERNAL_PORT,
-                database=database))
+        def connect_to_database(ignored):
+            self._get_postgres_connection(
+                host=self.node_1,
+                user=user,
+                port=POSTGRES_EXTERNAL_PORT,
+                database=database,
+            )
 
-        def insert_data(connection_to_db):
+        connecting_to_database = connecting_to_application.addCallback(
+            connect_to_database)
+
+        def add_data_node_1(connection_to_db):
             with connection_to_db as db_connection_node_1:
                 with db_connection_node_1.cursor() as db_node_1_cursor:
                     db_node_1_cursor.execute(
@@ -171,41 +199,34 @@ class PostgresTests(TestCase):
                     db_connection_node_1.commit()
                     self.assertEqual(db_node_1_cursor.fetchone()[0], data)
 
-        inserting_data = getting_database.addCallback(insert_data)
+        connecting_to_database.addCallback(add_data_node_1)
 
-        def move_postgres(ignored):
-            # TODO this should be a separate test
-            postgres_deployment_moved = {
-                u"version": 1,
-                u"nodes": {
-                    self.node_1: [],
-                    self.node_2: [POSTGRES_APPLICATION],
-                },
-            }
-
-            flocker_deploy(self, postgres_deployment_moved,
+        def get_postgres_node_2(ignored):
+            """
+            Move PostgreSQL to ``node_2`` and return a ``Deferred`` which fires
+            with a connection to the previously created database on ``node_2``.
+            """
+            flocker_deploy(self, self.postgres_deployment_moved,
                            self.postgres_application)
 
-            verifying_deployment = assert_expected_deployment(self, {
-                self.node_1: set([]),
-                self.node_2: set([POSTGRES_UNIT]),
-            })
+            getting_postgres = self._get_postgres_connection(
+                host=self.node_2,
+                user=user,
+                port=POSTGRES_EXTERNAL_PORT,
+                database=database,
+            )
 
-            return verifying_deployment
+            return getting_postgres
 
-        moving_postgres = inserting_data.addCallback(move_postgres)
+        getting_postgres_2 = connecting_to_database.addCallback(
+            get_postgres_node_2)
 
-        getting_database_node_2 = moving_postgres.addCallback(
-            lambda _: self._get_postgres_connection(
-                host=self.node_2, user=user, port=POSTGRES_EXTERNAL_PORT,
-                database=database))
-
-        def verify_data_moves(connection_to_db):
-            with connection_to_db as db_connection_node_2:
+        def verify_data_moves(connection_2):
+            with connection_2 as db_connection_node_2:
                 with db_connection_node_2.cursor() as db_node_2_cursor:
                     db_node_2_cursor.execute("SELECT * FROM " + table + ";")
                     self.assertEqual(db_node_2_cursor.fetchone()[0], data)
 
-        verifying_data_moves = getting_database_node_2.addCallback(
+        verifying_data_moves = getting_postgres_2.addCallback(
             verify_data_moves)
         return verifying_data_moves

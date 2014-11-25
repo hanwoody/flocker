@@ -212,5 +212,5 @@ class EnvironmentVariableTests(TestCase):
             self.addCleanup(connection_2.close)
             self.assertEqual(cursor_2.fetchall(), ((1, data),))
 
-        asserting_data_moved = getting_mysql_2.addCallback(verify_data_moves)
-        return asserting_data_moved
+        verifying_data_moves = getting_mysql_2.addCallback(verify_data_moves)
+        return verifying_data_moves
