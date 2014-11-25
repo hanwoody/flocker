@@ -322,11 +322,12 @@ class DeployerTests(TestCase):
     def test_restart_policy_on_failure_maximum_count(self):
         """
         An ``Application`` with a restart policy of on-failure and a maximum
-        retry count is not restarted, if it fails enough times.
+        retry count is not restarted if it fails more times than the specified
+        maximum.
         """
         # Start a container that
         # - immediately exits with a failure state
         # - records the number of times it has been run
         # Verify that
-        # - the container isn't runnig
+        # - the container isn't runnnig
         # - the container started the appropiate number of times
