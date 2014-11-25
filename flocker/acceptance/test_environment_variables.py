@@ -3,11 +3,6 @@
 """
 Tests for environment variables.
 """
-# TODO add PyMySQL to setup.py, unless a reviewer thinks that this should use
-# MySQL-python. The reason I didn't is that this is pure Python.
-# TODO Create and use @require_mysql, similar to
-# @skipUnless(PSYCOPG2_INSTALLED, "Psycopg2 not installed") in test_postgres.py
-# TODO add this to the licensing google doc
 from pymysql import connect
 from pymysql.err import OperationalError
 
@@ -53,6 +48,17 @@ class EnvironmentVariableTests(TestCase):
 
     Similar to:
     http://doc-dev.clusterhq.com/gettingstarted/examples/environment.html
+
+    # TODO (Note for submission)
+    # If this is suitable, I will add the new dependencies (currently just the
+    # latest https://pypi.python.org/pypi/PyMySQL) to setup.py, and
+    # create a @skipUnless decorator for each of the dependencies, similar to
+    # require_mongo in testtools.py. Each dependency must also go in the
+    # internal documentation for packages used.
+    #
+    # However, I understand that https://pypi.python.org/pypi/MySQL-python/ may
+    # be a more suitable option. I chose PyMySQL because it is pure Python, so
+    # on OS X for example it does not require ``brew install mysql``.
     """
     @require_flocker_cli
     def setUp(self):
