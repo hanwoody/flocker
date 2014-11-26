@@ -9,7 +9,7 @@ from pymysql.err import OperationalError
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
-from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
+from flocker.node._model import Application, DockerImage, AttachedVolume, Port
 from flocker.testtools import loop_until
 
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
@@ -19,25 +19,22 @@ MYSQL_INTERNAL_PORT = 3306
 MYSQL_EXTERNAL_PORT = 3306
 
 MYSQL_PASSWORD = u"clusterhq"
-MYSQL_APPLICATION = u"mysql-volume-example"
+MYSQL_APPLICATION_NAME = u"mysql-volume-example"
 MYSQL_IMAGE = u"mysql:5.6.17"
 MYSQL_ENVIRONMENT = {"MYSQL_ROOT_PASSWORD": MYSQL_PASSWORD}
 MYSQL_VOLUME_MOUNTPOINT = u'/var/lib/mysql'
 
-MYSQL_UNIT = Unit(
-    name=MYSQL_APPLICATION,
-    container_name=BASE_NAMESPACE + MYSQL_APPLICATION,
-    activation_state=u'active',
-    container_image=MYSQL_IMAGE,
-    # DockerClient.list() returns the default None for environment
+MYSQL_APPLICATION = Application(
+    name=MYSQL_APPLICATION_NAME,
+    image=DockerImage.from_string(MYSQL_IMAGE),
     ports=frozenset([
-        PortMap(internal_port=MYSQL_INTERNAL_PORT,
-                external_port=MYSQL_EXTERNAL_PORT),
-        ]),
-    volumes=frozenset([
-        Volume(node_path=FilePath(b'/tmp'),
-               container_path=FilePath(MYSQL_VOLUME_MOUNTPOINT)),
-        ]),
+        Port(internal_port=MYSQL_INTERNAL_PORT,
+             external_port=MYSQL_EXTERNAL_PORT),
+    ]),
+    volume=AttachedVolume(
+        name=MYSQL_APPLICATION_NAME,
+        mountpoint=FilePath(MYSQL_VOLUME_MOUNTPOINT),
+    ),
 )
 
 
@@ -65,7 +62,7 @@ class EnvironmentVariableTests(TestCase):
         """
         Deploy MySQL to one of two nodes.
         """
-        getting_nodes = get_nodes(num_nodes=2)
+        getting_nodes = get_nodes(self, num_nodes=2)
 
         def deploy_mysql(node_ips):
             self.node_1, self.node_2 = node_ips
@@ -73,7 +70,7 @@ class EnvironmentVariableTests(TestCase):
             mysql_deployment = {
                 u"version": 1,
                 u"nodes": {
-                    self.node_1: [MYSQL_APPLICATION],
+                    self.node_1: [MYSQL_APPLICATION_NAME],
                     self.node_2: [],
                 },
             }
@@ -82,14 +79,14 @@ class EnvironmentVariableTests(TestCase):
                 u"version": 1,
                 u"nodes": {
                     self.node_1: [],
-                    self.node_2: [MYSQL_APPLICATION],
+                    self.node_2: [MYSQL_APPLICATION_NAME],
                 },
             }
 
             self.mysql_application = {
                 u"version": 1,
                 u"applications": {
-                    MYSQL_APPLICATION: {
+                    MYSQL_APPLICATION_NAME: {
                         u"image": MYSQL_IMAGE,
                         u"environment": MYSQL_ENVIRONMENT,
                         u"ports": [{
@@ -113,7 +110,7 @@ class EnvironmentVariableTests(TestCase):
         The test setUp deploys MySQL.
         """
         d = assert_expected_deployment(self, {
-            self.node_1: set([MYSQL_UNIT]),
+            self.node_1: set([MYSQL_APPLICATION]),
             self.node_2: set([]),
         })
 
@@ -128,7 +125,7 @@ class EnvironmentVariableTests(TestCase):
 
         asserting_mysql_moved = assert_expected_deployment(self, {
             self.node_1: set([]),
-            self.node_2: set([MYSQL_UNIT]),
+            self.node_2: set([MYSQL_APPLICATION]),
         })
 
         return asserting_mysql_moved
