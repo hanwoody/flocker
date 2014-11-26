@@ -49,7 +49,8 @@ class DockerImage(object):
         return cls(**kwargs)
 
 
-@attributes(["name", "mountpoint"])
+@attributes(["name", "mountpoint", "maximum_size"],
+            defaults=dict(maximum_size=None))
 class AttachedVolume(object):
     """
     A volume attached to an application to be deployed.
@@ -61,6 +62,9 @@ class AttachedVolume(object):
 
     :ivar FilePath mountpoint: The path within the container where this
         volume should be mounted.
+
+    :ivar int maximum_size: The maximum size in bytes of this volume, or
+        ``None`` if there is no specified limit.
     """
 
     @classmethod
@@ -81,14 +85,18 @@ class AttachedVolume(object):
         # https://github.com/ClusterHQ/flocker/issues/49
         try:
             volume = volumes.pop()
+            # XXX Docker Volume objects do not contain size information
+            # at this time.
             return {cls(name=name, mountpoint=volume.container_path)}
         except KeyError:
             return None
 
 
-@attributes(["name", "image", "ports", "volume", "links", "environment"],
+@attributes(["name", "image", "ports", "volume", "links", "environment",
+             "memory_limit", "cpu_shares"],
             defaults=dict(ports=frozenset(), volume=None,
-                          links=frozenset(), environment=None))
+                          links=frozenset(), environment=None,
+                          memory_limit=None, cpu_shares=None))
 class Application(object):
     """
     A single `application <http://12factor.net/>`_ to be deployed.

@@ -143,6 +143,8 @@ class StartApplication(object):
             ports=port_maps,
             environment=docker_environment,
             volumes=volumes,
+            mem_limit=application.memory_limit,
+            cpu_shares=application.cpu_shares,
         )
 
 
@@ -194,6 +196,8 @@ class CreateVolume(object):
     :ivar AttachedVolume volume: Volume to create.
     """
     def run(self, deployer):
+        # Update this when VolumeService.create signature changes.  It will be
+        # simplified to only pass in the volume object.  FLOC-978
         return deployer.volume_service.create(
             _to_volume_name(self.volume.name))
 
