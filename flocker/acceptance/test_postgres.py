@@ -8,7 +8,7 @@ from unittest import skipUnless
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
-from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
+from flocker.node._model import Application, DockerImage, AttachedVolume, Port
 from flocker.testtools import loop_until
 
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
@@ -23,23 +23,21 @@ except ImportError:
 POSTGRES_INTERNAL_PORT = 5432
 POSTGRES_EXTERNAL_PORT = 5432
 
-POSTGRES_APPLICATION = u"postgres-volume-example"
+POSTGRES_APPLICATION_NAME = u"postgres-volume-example"
 POSTGRES_IMAGE = u"postgres"
 POSTGRES_VOLUME_MOUNTPOINT = u'/var/lib/postgresql/data'
 
-POSTGRES_UNIT = Unit(
-    name=POSTGRES_APPLICATION,
-    container_name=BASE_NAMESPACE + POSTGRES_APPLICATION,
-    activation_state=u'active',
-    container_image=POSTGRES_IMAGE + u':latest',
+POSTGRES_APPLICATION = Application(
+    name=POSTGRES_APPLICATION_NAME,
+    image=DockerImage.from_string(POSTGRES_IMAGE + u':latest'),
     ports=frozenset([
-        PortMap(internal_port=POSTGRES_INTERNAL_PORT,
-                external_port=POSTGRES_EXTERNAL_PORT),
+        Port(internal_port=POSTGRES_INTERNAL_PORT,
+             external_port=POSTGRES_EXTERNAL_PORT),
         ]),
-    volumes=frozenset([
-        Volume(node_path=FilePath(b'/tmp'),
-               container_path=FilePath(POSTGRES_VOLUME_MOUNTPOINT)),
-        ]),
+    volume=AttachedVolume(
+        name=POSTGRES_APPLICATION_NAME,
+        mountpoint=FilePath(POSTGRES_VOLUME_MOUNTPOINT),
+    ),
 )
 
 
@@ -67,7 +65,7 @@ class PostgresTests(TestCase):
         """
         Deploy PostgreSQL to a node.
         """
-        getting_nodes = get_nodes(num_nodes=2)
+        getting_nodes = get_nodes(self, num_nodes=2)
 
         def deploy_postgres(node_ips):
             self.node_1, self.node_2 = node_ips
@@ -75,7 +73,7 @@ class PostgresTests(TestCase):
             postgres_deployment = {
                 u"version": 1,
                 u"nodes": {
-                    self.node_1: [POSTGRES_APPLICATION],
+                    self.node_1: [POSTGRES_APPLICATION_NAME],
                     self.node_2: [],
                 },
             }
@@ -84,14 +82,14 @@ class PostgresTests(TestCase):
                 u"version": 1,
                 u"nodes": {
                     self.node_1: [],
-                    self.node_2: [POSTGRES_APPLICATION],
+                    self.node_2: [POSTGRES_APPLICATION_NAME],
                 },
             }
 
             self.postgres_application = {
                 u"version": 1,
                 u"applications": {
-                    POSTGRES_APPLICATION: {
+                    POSTGRES_APPLICATION_NAME: {
                         u"image": POSTGRES_IMAGE,
                         u"ports": [{
                             u"internal": POSTGRES_INTERNAL_PORT,
@@ -120,7 +118,7 @@ class PostgresTests(TestCase):
         not another.
         """
         d = assert_expected_deployment(self, {
-            self.node_1: set([POSTGRES_UNIT]),
+            self.node_1: set([POSTGRES_APPLICATION]),
             self.node_2: set([]),
         })
 
@@ -135,7 +133,7 @@ class PostgresTests(TestCase):
 
         asserting_postgres_moved = assert_expected_deployment(self, {
             self.node_1: set([]),
-            self.node_2: set([POSTGRES_UNIT]),
+            self.node_2: set([POSTGRES_APPLICATION]),
         })
 
         return asserting_postgres_moved
