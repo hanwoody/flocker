@@ -12,7 +12,7 @@ from elasticsearch.exceptions import TransportError
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import TestCase
 
-from flocker.node._docker import BASE_NAMESPACE, PortMap, Unit, Volume
+from flocker.node._model import Application, DockerImage, AttachedVolume, Port
 from flocker.testtools import loop_until
 
 from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
@@ -21,23 +21,21 @@ from .testtools import (assert_expected_deployment, flocker_deploy, get_nodes,
 ELASTICSEARCH_INTERNAL_PORT = 9200
 ELASTICSEARCH_EXTERNAL_PORT = 9200
 
-ELASTICSEARCH_APPLICATION = u"elasticsearch"
+ELASTICSEARCH_APPLICATION_NAME = u"elasticsearch"
 ELASTICSEARCH_IMAGE = u"clusterhq/elasticsearch"
 ELASTICSEARCH_VOLUME_MOUNTPOINT = u'/var/lib/elasticsearch'
 
-ELASTICSEARCH_UNIT = Unit(
-    name=ELASTICSEARCH_APPLICATION,
-    container_name=BASE_NAMESPACE + ELASTICSEARCH_APPLICATION,
-    activation_state=u'active',
-    container_image=ELASTICSEARCH_IMAGE + u':latest',
+ELASTICSEARCH_APPLICATION = Application(
+    name=ELASTICSEARCH_APPLICATION_NAME,
+    image=DockerImage.from_string(ELASTICSEARCH_IMAGE),
     ports=frozenset([
-        PortMap(internal_port=ELASTICSEARCH_INTERNAL_PORT,
-                external_port=ELASTICSEARCH_EXTERNAL_PORT),
-        ]),
-    volumes=frozenset([
-        Volume(node_path=FilePath(b'/tmp'),
-               container_path=FilePath(ELASTICSEARCH_VOLUME_MOUNTPOINT)),
-        ]),
+        Port(internal_port=ELASTICSEARCH_INTERNAL_PORT,
+             external_port=ELASTICSEARCH_EXTERNAL_PORT),
+    ]),
+    volume=AttachedVolume(
+        name=ELASTICSEARCH_APPLICATION_NAME,
+        mountpoint=FilePath(ELASTICSEARCH_VOLUME_MOUNTPOINT),
+    ),
 )
 
 LOGSTASH_INTERNAL_PORT = 5000
@@ -46,37 +44,31 @@ LOGSTASH_EXTERNAL_PORT = 5000
 LOGSTASH_LOCAL_PORT = 9200
 LOGSTASH_REMOTE_PORT = 9200
 
-LOGSTASH_APPLICATION = u"logstash"
+LOGSTASH_APPLICATION_NAME = u"logstash"
 LOGSTASH_IMAGE = u"clusterhq/logstash"
 
-LOGSTASH_UNIT = Unit(
-    name=LOGSTASH_APPLICATION,
-    container_name=BASE_NAMESPACE + LOGSTASH_APPLICATION,
-    activation_state=u'active',
-    container_image=LOGSTASH_IMAGE + u':latest',
+LOGSTASH_APPLICATION = Application(
+    name=LOGSTASH_APPLICATION_NAME,
+    image=DockerImage.from_string(LOGSTASH_IMAGE),
     ports=frozenset([
-        PortMap(internal_port=LOGSTASH_INTERNAL_PORT,
-                external_port=LOGSTASH_INTERNAL_PORT),
-        ]),
-    volumes=frozenset([]),
+        Port(internal_port=LOGSTASH_INTERNAL_PORT,
+             external_port=LOGSTASH_INTERNAL_PORT),
+    ]),
 )
 
 KIBANA_INTERNAL_PORT = 8080
 KIBANA_EXTERNAL_PORT = 80
 
-KIBANA_APPLICATION = u"kibana"
+KIBANA_APPLICATION_NAME = u"kibana"
 KIBANA_IMAGE = u"clusterhq/kibana"
 
-KIBANA_UNIT = Unit(
-    name=KIBANA_APPLICATION,
-    container_name=BASE_NAMESPACE + KIBANA_APPLICATION,
-    activation_state=u'active',
-    container_image=KIBANA_IMAGE + u':latest',
+KIBANA_APPLICATION = Application(
+    name=KIBANA_APPLICATION_NAME,
+    image=DockerImage.from_string(KIBANA_IMAGE),
     ports=frozenset([
-        PortMap(internal_port=KIBANA_INTERNAL_PORT,
-                external_port=KIBANA_EXTERNAL_PORT),
-        ]),
-    volumes=frozenset([]),
+        Port(internal_port=KIBANA_INTERNAL_PORT,
+             external_port=KIBANA_EXTERNAL_PORT),
+    ]),
 )
 
 MESSAGES = set([
@@ -117,7 +109,7 @@ class LinkingTests(TestCase):
         """
         Deploy Elasticsearch, logstash and Kibana to one of two nodes.
         """
-        getting_nodes = get_nodes(num_nodes=2)
+        getting_nodes = get_nodes(self, num_nodes=2)
 
         def deploy_elk(node_ips):
             self.node_1, self.node_2 = node_ips
@@ -126,8 +118,9 @@ class LinkingTests(TestCase):
                 u"version": 1,
                 u"nodes": {
                     self.node_1: [
-                        ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
-                        KIBANA_APPLICATION,
+                        ELASTICSEARCH_APPLICATION_NAME,
+                        LOGSTASH_APPLICATION_NAME,
+                        KIBANA_APPLICATION_NAME,
                     ],
                     self.node_2: [],
                 },
@@ -136,15 +129,16 @@ class LinkingTests(TestCase):
             self.elk_deployment_moved = {
                 u"version": 1,
                 u"nodes": {
-                    self.node_1: [LOGSTASH_APPLICATION, KIBANA_APPLICATION],
-                    self.node_2: [ELASTICSEARCH_APPLICATION],
+                    self.node_1: [LOGSTASH_APPLICATION_NAME,
+                                  KIBANA_APPLICATION_NAME],
+                    self.node_2: [ELASTICSEARCH_APPLICATION_NAME],
                 },
             }
 
             self.elk_application = {
                 u"version": 1,
                 u"applications": {
-                    ELASTICSEARCH_APPLICATION: {
+                    ELASTICSEARCH_APPLICATION_NAME: {
                         u"image": ELASTICSEARCH_IMAGE,
                         u"ports": [{
                             u"internal": ELASTICSEARCH_INTERNAL_PORT,
@@ -154,7 +148,7 @@ class LinkingTests(TestCase):
                             u"mountpoint": ELASTICSEARCH_VOLUME_MOUNTPOINT,
                         },
                     },
-                    LOGSTASH_APPLICATION: {
+                    LOGSTASH_APPLICATION_NAME: {
                         u"image": LOGSTASH_IMAGE,
                         u"ports": [{
                             u"internal": LOGSTASH_INTERNAL_PORT,
@@ -166,7 +160,7 @@ class LinkingTests(TestCase):
                             u"alias": u"es",
                         }],
                     },
-                    KIBANA_APPLICATION: {
+                    KIBANA_APPLICATION_NAME: {
                         u"image": KIBANA_IMAGE,
                         u"ports": [{
                             u"internal": KIBANA_INTERNAL_PORT,
@@ -187,7 +181,8 @@ class LinkingTests(TestCase):
         node.
         """
         d = assert_expected_deployment(self, {
-            self.node_1: set([ELASTICSEARCH_UNIT, LOGSTASH_UNIT, KIBANA_UNIT]),
+            self.node_1: set([ELASTICSEARCH_APPLICATION, LOGSTASH_APPLICATION,
+                              KIBANA_APPLICATION]),
             self.node_2: set([]),
         })
 
@@ -213,8 +208,8 @@ class LinkingTests(TestCase):
         flocker_deploy(self, self.elk_deployment_moved, self.elk_application)
 
         asserting_es_moved = assert_expected_deployment(self, {
-            self.node_1: set([LOGSTASH_UNIT, KIBANA_UNIT]),
-            self.node_2: set([ELASTICSEARCH_UNIT]),
+            self.node_1: set([LOGSTASH_APPLICATION, KIBANA_APPLICATION]),
+            self.node_2: set([ELASTICSEARCH_APPLICATION]),
         })
 
         return asserting_es_moved
