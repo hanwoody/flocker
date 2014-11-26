@@ -156,7 +156,8 @@ class EnvironmentVariableTests(TestCase):
     def test_moving_data(self):
         """
         After adding data to MySQL and then moving it to another node, the data
-        added is available on the second node.
+        added is available on the second node. The database can be accessed
+        using the root password passed in as an environment variable.
         """
         user = b'root'
         data = b'flocker test'
