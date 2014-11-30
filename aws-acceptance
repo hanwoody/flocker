@@ -29,6 +29,7 @@ def install():
     sudo('mkdir /opt/flocker')
     sudo('truncate --size 1G /opt/flocker/pool-vdev')
     sudo('zpool create flocker /opt/flocker/pool-vdev')
+    sudo('cp .ssh/authorized_keys /root/.ssh/')
 
 
 def run_tests(addresses):
