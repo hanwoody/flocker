@@ -1,0 +1,79 @@
+#!/usr/bin/env python
+import sys
+import os
+import subprocess
+import time
+from fabric.api import sudo, execute, env
+from fabric.network import disconnect_all
+
+from aws import create_node, driver
+
+ZFS_REPO = ("https://s3.amazonaws.com/archive.zfsonlinux.org/"
+            "fedora/zfs-release$(rpm -E %dist).noarch.rpm")
+CLUSTERHQ_REPO = ("https://storage.googleapis.com/archive.clusterhq.com/"
+                  "fedora/clusterhq-release$(rpm -E %dist).noarch.rpm")
+
+
+def install():
+    sudo("yum install -y " + ZFS_REPO)
+    sudo("yum install -y " + CLUSTERHQ_REPO)
+    sudo("yum update -y")
+    sudo("reboot", warn_only=True)
+    # Wait for machine to shutdown (see fabric.api.reboot)
+    time.sleep(5)
+    sudo("yum install -y kernel-devel-$(uname -r)")
+    # sudo("yum reinstall spl-dkms zfs-dkms")
+    sudo("yum install -y flocker-node")
+    sudo("systemctl enable docker.service")
+    sudo("systemctl start docker.service")
+    sudo('mkdir /opt/flocker')
+    sudo('truncate --size 1G /opt/flocker/pool-vdev')
+    sudo('zpool create flocker /opt/flocker/pool-vdev')
+
+
+def run_tests(addresses):
+    environ = os.environ.copy()
+    environ.update({
+        "FLOCKER_ACCEPTANCE_NODES": ":".join(addresses),
+    })
+    sys.exit(subprocess.call(
+        ['trial', 'flocker.acceptance'],
+        env=environ))
+
+
+def main():
+    try:
+        nodes = []
+        print "creating 1"
+        nodes.append(create_node(
+            name="test-accept-1",
+            base_ami="ami-cc8de6fc",
+            username='fedora',
+        ))
+        print "creating 2"
+        nodes.append(create_node(
+            name="test-accept-2",
+            base_ami="ami-cc8de6fc",
+            username='fedora',
+        ))
+        result = driver.wait_until_running(nodes)
+        addresses = [address[0] for node, address in result]
+        print addresses
+        print "installing"
+        env.connection_attempts = 24
+        env.timeout = 5
+        env.pty = False
+        execute(
+            task=install,
+            hosts=["fedora@" + address for address in addresses],
+        )
+        disconnect_all()
+        print "running tests"
+        run_tests(addresses)
+    finally:
+        for node in nodes:
+            print "destroying", node
+            driver.destroy_node(node)
+
+if __name__ == "__main__":
+    main()

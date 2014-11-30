@@ -79,3 +79,5 @@ python-flocker.spec
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+aws_config.yml
