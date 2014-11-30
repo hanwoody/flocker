@@ -14,13 +14,13 @@ CLUSTERHQ_REPO = ("https://storage.googleapis.com/archive.clusterhq.com/"
                   "fedora/clusterhq-release$(rpm -E %dist).noarch.rpm")
 
 
-def install():
+def install_1():
     sudo("yum install -y " + ZFS_REPO)
     sudo("yum install -y " + CLUSTERHQ_REPO)
     sudo("yum update -y")
-    sudo("reboot", warn_only=True)
-    # Wait for machine to shutdown (see fabric.api.reboot)
-    time.sleep(5)
+
+
+def install_2():
     sudo("yum install -y kernel-devel-$(uname -r)")
     # sudo("yum reinstall spl-dkms zfs-dkms")
     sudo("yum install -y flocker-node")
@@ -65,10 +65,26 @@ def main():
         env.timeout = 5
         env.pty = False
         execute(
-            task=install,
+            task=install_1,
             hosts=["fedora@" + address for address in addresses],
         )
         disconnect_all()
+
+        for index, node in enumerate(nodes):
+            print "Rebooting", index
+            node.reboot()
+        print "Sleeping for reboot."
+        time.sleep(5)
+        print "Waiting for nodes to start."
+        driver.wait_until_running(nodes)
+
+        print "installing part 2"
+        execute(
+            task=install_2,
+            hosts=["fedora@" + address for address in addresses],
+        )
+        disconnect_all()
+
         print "running tests"
         run_tests(addresses)
     finally:
