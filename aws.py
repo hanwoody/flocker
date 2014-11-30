@@ -39,7 +39,7 @@ def create_node(name, base_ami,
         size=get_size(size),
 
         ex_keyname=keyname,
-        ex_security_groups=['ssh'],
+        ex_security_groups=['acceptance'],
         ex_blockdevicemappings=[
             {"DeviceName": "/dev/sda1",
              "Ebs": {"VolumeSize": disk_size,

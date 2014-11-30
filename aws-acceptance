@@ -13,6 +13,8 @@ ZFS_REPO = ("https://s3.amazonaws.com/archive.zfsonlinux.org/"
 CLUSTERHQ_REPO = ("https://storage.googleapis.com/archive.clusterhq.com/"
                   "fedora/clusterhq-release$(rpm -E %dist).noarch.rpm")
 
+## TODO: security groups
+
 
 def install_1():
     sudo("yum install -y " + ZFS_REPO)
