@@ -45,22 +45,20 @@ def run_tests(addresses):
 def main():
     try:
         nodes = []
-        print "creating 1"
-        nodes.append(create_node(
-            name="test-accept-1",
-            base_ami="ami-cc8de6fc",
-            username='fedora',
-        ))
-        print "creating 2"
-        nodes.append(create_node(
-            name="test-accept-2",
-            base_ami="ami-cc8de6fc",
-            username='fedora',
-        ))
+        for index in range(2):
+            print "creating", index
+            nodes.append(create_node(
+                name="test-accept-%d" % (index,),
+                base_ami="ami-cc8de6fc",
+                username='fedora',
+            ))
+
+        print "Getting addresses"
         result = driver.wait_until_running(nodes)
         addresses = [address[0] for node, address in result]
         print addresses
-        print "installing"
+
+        print "installing part 1"
         env.connection_attempts = 24
         env.timeout = 5
         env.pty = False
@@ -90,7 +88,7 @@ def main():
     finally:
         for node in nodes:
             print "destroying", node
-            driver.destroy_node(node)
+            node.destroy()
 
 if __name__ == "__main__":
     main()
